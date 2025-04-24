@@ -2,21 +2,24 @@
 
 This document explains how to use the Simple Movie Recommender, which ranks movies based on the IMDB Weighted Rating Formula.
 
+*For general usage instructions, see the [main README](README.md)*
+
 ## What is the Simple Movie Recommender?
 
 The Simple Movie Recommender uses a balanced approach to rank movies by considering both their average ratings and the number of votes they received. This addresses the issue where movies with high ratings but few votes might be unreliably ranked compared to movies with slightly lower ratings but many votes.
 
-高投票电影（v ≫ m）：评分更依赖自身（如v=1000, m=100时，权重90%来自电影自身评分）
+### Behavior Examples:
 
-低投票电影（v ≪ m）：评分向全局均值C收缩，避免少数用户的极端评分影响排名
+- **High-vote movies** (v ≫ m): Rating relies more on the movie's own average (e.g., when v=1000, m=100, 90% of the weight comes from the movie's own rating)
+- **Low-vote movies** (v ≪ m): Rating gravitates toward the global mean C, preventing extreme ratings from a few users from affecting rankings
 
 ### The IMDB Weighted Rating Formula
 
 The formula used is:
 
-```
-Score = (v / (v + m)) * R + (m / (v + m)) * C
-```
+$$
+Score = \frac{v}{v + m} * R + \frac{m}{v + m} * C
+$$
 
 Where:
 - `v`: Number of votes for the movie
@@ -49,54 +52,55 @@ Additional options:
 
 ### User Interface
 
-Once running, the Simple Movie Recommender displays a simple interface:
+Once running, the Simple Movie Recommender displays a clean interface:
 
 1. Choose "View top rated movies" to see the top-rated movies according to the weighted formula
 2. Enter the number of movies to display (default is 10)
-3. View the results in a formatted table
+3. View the results in a formatted table with IMDb links
+
+## Implementation Details
+
+The implementation is contained in `src/recommenders/simple_recommender.py` and includes:
+
+```python
+class SimpleRecommender:
+    def __init__(self, vote_count_percentile=0.90):
+        # Initialize parameters
+        
+    def fit(self, metadata_df):
+        # Calculate mean vote (C) and minimum votes threshold (m)
+        # Filter movies with enough votes
+        # Calculate weighted scores
+        # Sort movies by score
+        
+    def recommend(self, movie_title=None, top_n=10):
+        # Return top N movies by weighted score
+```
+
+## How It Differs from Other Recommenders
+
+The main differences between the Simple Movie Recommender and other recommenders are:
+
+1. **No User Input Required**: Unlike the Plot Recommender which needs a movie title, the Simple Recommender works without any specific movie input.
+
+2. **Universal Recommendations**: All users receive the same recommendations based on objective metrics rather than personalized content similarity.
+
+3. **Pre-Calculation**: The scoring happens during fitting rather than at recommendation time, making recommendations very fast.
 
 ## Examples
 
-```bash
-# Basic usage with default settings (90th percentile)
-python src/main.py --recommender simple
-
-# View results with a more inclusive threshold (80th percentile)
-python src/main.py --recommender simple --percentile 0.80
-
-# Use with the name-removed dataset (if available)
-python src/main.py --recommender simple --use-name-removed
-```
-
-## How It Differs from the Plot Recommender
-
-The main differences between the Simple Movie Recommender and the Plot Recommender are:
-
-1. **Recommendation Approach**:
-   - Simple Recommender: Shows the same top movies to all users based on ratings and popularity
-   - Plot Recommender: Recommends movies similar to a specific movie based on plot content
-
-2. **User Input**:
-   - Simple Recommender: No specific movie input required
-   - Plot Recommender: Requires a specific movie title as input
-
-3. **Use Case**:
-   - Simple Recommender: Best for discovering generally well-received movies
-   - Plot Recommender: Best for finding movies similar to ones you already know and like
-
-## Technical Details
-
-The implementation:
-- Filters movies based on vote count to ensure statistical reliability
-- Pre-calculates scores for all qualified movies
-- Returns results in the same format as other recommenders (title, IMDB ID)
-- Handles edge cases like missing data
-- Provides diagnostics via the `get_details()` method
+Using the Simple Recommender with default settings often highlights well-known, critically acclaimed movies like "The Godfather," "The Shawshank Redemption," and others that have both high ratings and substantial vote counts.
 
 ## Future Improvements
 
 Planned enhancements for the Simple Recommender:
 - Filtering by genre, release year, etc.
-- Adjusting the vote count threshold at runtime
+- Adjusting the vote count threshold via the UI
 - Including more movie metadata in the results
-- Visualizations of the rating distribution 
+- Visualizations of the rating distribution
+- Genre-weighted recommendations
+
+## Related Features
+
+- [Named Entity Removal](README_NER_PREPROCESSING.md): Can be combined with the Simple Recommender, though it has less impact than with the Plot Recommender.
+- [Example Comparison Script](src/example_comparison.py): Shows differences between recommendation approaches. 
