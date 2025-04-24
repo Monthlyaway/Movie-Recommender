@@ -24,24 +24,50 @@ except ImportError as e:
 # --- Configuration ---
 DATA_DIRECTORY = 'dataset' # Relative path from project root
 
+def setup_parser():
+    """
+    Set up command-line argument parser with subparsers for each recommender type.
+    
+    Returns:
+        argparse.ArgumentParser: The configured parser
+    """
+    parser = argparse.ArgumentParser(description='Movie Recommender System')
+    
+    # Global options that apply to all recommenders
+    parser.add_argument('--use-name-removed', action='store_true',
+                      help='Use the version of metadata with person names removed from overviews')
+    
+    # Create subparsers for each recommender type
+    subparsers = parser.add_subparsers(dest='recommender', help='Recommender type to use')
+    
+    # Default recommender if none specified
+    parser.set_defaults(recommender='plot')
+    
+    # Plot Recommender (content-based)
+    plot_parser = subparsers.add_parser('plot', help='Content-based recommender using plot similarity')
+    
+    # Simple Recommender (popularity-based)
+    simple_parser = subparsers.add_parser('simple', help='Simple recommender based on weighted ratings')
+    simple_parser.add_argument('--percentile', type=float, default=0.90,
+                             help='Vote count percentile threshold (default: 0.90)')
+    
+    # Association Recommender (collaborative filtering)
+    assoc_parser = subparsers.add_parser('association', help='Association rule mining recommender')
+    assoc_parser.add_argument('--min-support', type=float, default=0.06,
+                            help='Minimum support threshold for association rules (default: 0.06)')
+    assoc_parser.add_argument('--min-confidence', type=float, default=0.3,
+                            help='Minimum confidence for association rules (default: 0.3)')
+    assoc_parser.add_argument('--min-lift', type=float, default=1.2,
+                            help='Minimum lift for association rules (default: 1.2)')
+    assoc_parser.add_argument('--rating-threshold', type=float, default=3.5,
+                            help='Minimum rating to consider a movie as liked (default: 3.5)')
+    
+    return parser
+
 # --- Main Execution ---
 if __name__ == "__main__":
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description='Movie Recommender System')
-    parser.add_argument('--recommender', type=str, choices=['simple', 'plot', 'association'], 
-                        default='plot', help='Recommender type to use')
-    parser.add_argument('--use-name-removed', action='store_true',
-                       help='Use the version of metadata with person names removed from overviews')
-    parser.add_argument('--percentile', type=float, default=0.90,
-                       help='Vote count percentile threshold for simple recommender (default: 0.90)')
-    parser.add_argument('--min-support', type=float, default=0.06,
-                       help='Minimum support threshold for association rules (default: 0.06)')
-    parser.add_argument('--min-confidence', type=float, default=0.3,
-                       help='Minimum confidence for association rules (default: 0.3)')
-    parser.add_argument('--min-lift', type=float, default=1.2,
-                       help='Minimum lift for association rules (default: 1.2)')
-    parser.add_argument('--rating-threshold', type=float, default=3.5,
-                       help='Minimum rating to consider a movie as liked (default: 3.5)')
+    parser = setup_parser()
     args = parser.parse_args()
 
     print("--- Movie Recommender System ---")
