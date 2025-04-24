@@ -54,7 +54,7 @@ python -m spacy download en_core_web_sm
 Alternatively, you can install the packages individually:
 
 ```bash
-pip install pandas numpy scikit-learn spacy rich tqdm colorama tabulate
+pip install pandas numpy scikit-learn spacy rich tqdm colorama tabulate mlxtend
 python -m spacy download en_core_web_sm
 ```
 

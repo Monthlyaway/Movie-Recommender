@@ -49,6 +49,70 @@ def select_movie_from_matches(matches: List[str]) -> Optional[str]:
         console.print("[red]Invalid input.[/red]")
         return None
 
+def display_association_rules(recommender):
+    """
+    Displays random association rules from the recommender.
+    
+    Args:
+        recommender: An initialized and fitted AssociationRecommender
+    """
+    if not hasattr(recommender, 'get_random_rules'):
+        console.print("[bold red]This recommender doesn't support rule display.[/bold red]")
+        return
+    
+    try:
+        # Ask user how many rules to display
+        try:
+            num_rules = int(Prompt.ask("\nHow many random rules to display?", default="5"))
+            if num_rules <= 0:
+                console.print("[bold red]Please enter a positive number.[/bold red]")
+                return
+        except ValueError:
+            console.print("[bold red]Invalid number.[/bold red]")
+            return
+            
+        # Get random rules
+        rules = recommender.get_random_rules(num_rules)
+        if not rules:
+            console.print("[bold yellow]No rules available to display.[/bold yellow]")
+            return
+            
+        # Display rules in a table
+        console.print(f"\n[bold green]Displaying {len(rules)} Random Association Rules:[/bold green]")
+        
+        for i, rule in enumerate(rules):
+            # Create a nicely formatted panel for each rule
+            antecedents_str = ", ".join(rule['antecedents'])
+            consequents_str = ", ".join(rule['consequents'])
+            
+            panel_content = (
+                f"[bold cyan]Rule #{i+1}:[/bold cyan]\n\n"
+                f"[bold]IF[/bold] user likes: [yellow]{antecedents_str}[/yellow]\n"
+                f"[bold]THEN[/bold] they'll likely also like: [green]{consequents_str}[/green]\n\n"
+                f"[dim]Support: {rule['support']:.4f} | "
+                f"Confidence: {rule['confidence']:.4f} | "
+                f"Lift: {rule['lift']:.4f}[/dim]"
+            )
+            
+            panel = Panel(
+                panel_content,
+                title=f"[bold]Association Rule {i+1}/{len(rules)}[/bold]",
+                border_style="blue"
+            )
+            
+            console.print(panel)
+            
+            # Ask to see more rules if not the last one
+            if i < len(rules) - 1:
+                see_more = Prompt.ask("See next rule?", choices=["y", "n"], default="y")
+                if see_more.lower() == "n":
+                    break
+                    
+        console.print("\n[bold green]End of rules display.[/bold green]")
+        
+    except Exception as e:
+        console.print(f"[bold red]Error displaying rules: {e}[/bold red]")
+
 
 def run_ui(recommender):
     """
@@ -64,7 +128,11 @@ def run_ui(recommender):
     console.print("[bold cyan]Welcome to the Movie Recommender![/bold cyan]")
     
     # Detect which type of recommender we're using
-    is_simple_recommender = recommender.__class__.__name__ == 'SimpleRecommender'
+    recommender_name = recommender.__class__.__name__
+    is_simple_recommender = recommender_name == 'SimpleRecommender'
+    is_association_recommender = recommender_name == 'AssociationRecommender'
+    is_content_based = not (is_simple_recommender or is_association_recommender)
+    
     if is_simple_recommender:
         console.print(f"[bold]Using Simple Movie Recommender[/bold] (IMDB Weighted Rating Formula)")
         if hasattr(recommender, 'get_details'):
@@ -72,6 +140,15 @@ def run_ui(recommender):
             console.print(f"Minimum votes threshold: {details.get('minimum_vote_threshold', 'N/A'):.0f}")
             console.print(f"Mean rating across all movies: {details.get('mean_vote_threshold', 'N/A'):.2f}")
             console.print(f"Total qualified movies: {details.get('qualified_movies_count', 'N/A')}")
+    elif is_association_recommender:
+        console.print(f"[bold]Using Association Rule Mining Recommender[/bold]")
+        if hasattr(recommender, 'get_details'):
+            details = recommender.get_details()
+            console.print(f"Min support: {details.get('min_support', 'N/A')}")
+            console.print(f"Min confidence: {details.get('min_confidence', 'N/A')}")
+            console.print(f"Min lift: {details.get('min_lift', 'N/A')}")
+            console.print(f"Rating threshold: {details.get('rating_threshold', 'N/A')}")
+            console.print(f"Number of rules: {details.get('rules_count', 'N/A')}")
     else:
         console.print(f"[bold]Using Plot-Based Movie Recommender[/bold]")
     
@@ -84,8 +161,11 @@ def run_ui(recommender):
         
         if is_simple_recommender:
             console.print("1. View top rated movies")
-        else:
-            console.print(f"1. Show plots: {'[green]ON[/green]' if show_plots else '[red]OFF[/red]'}")
+        elif is_content_based or is_association_recommender:
+            if is_content_based:  # Only Plot recommender has plot details
+                console.print(f"1. Show plots: {'[green]ON[/green]' if show_plots else '[red]OFF[/red]'}")
+            else:
+                console.print("1. Display random association rules")
             console.print("2. Search for a movie")
         
         console.print("3. Quit")
@@ -124,21 +204,24 @@ def run_ui(recommender):
                     console.print("[bold red]Please enter a valid number.[/bold red]")
                 except Exception as e:
                     console.print(f"[bold red]An error occurred: {e}[/bold red]")
-            else:
+            elif is_content_based:
                 # Plot recommender: toggle plot display
                 show_plots = not show_plots
                 console.print(f"Plot display is now {'[green]ON[/green]' if show_plots else '[red]OFF[/red]'}")
+            elif is_association_recommender:
+                # Association recommender: display random rules
+                display_association_rules(recommender)
             continue
         elif choice == "3":
             console.print("[bold yellow]Goodbye![/bold yellow]")
             break
         
-        # Option 2: Only relevant for plot recommender
+        # Option 2: Only relevant for plot and association recommenders
         if is_simple_recommender:
             console.print("[bold yellow]Invalid option for the Simple Recommender.[/bold yellow]")
             continue
             
-        # Search for a movie with the plot recommender
+        # Search for a movie with the plot or association recommender
         movie_title_input = Prompt.ask("\n[bold green]Enter a movie title to get recommendations[/bold green]")
 
         if not movie_title_input:
@@ -170,29 +253,36 @@ def run_ui(recommender):
             # Case 2: Exact match recommendations returned (or after selection)
             if isinstance(result, list) and result and isinstance(result[0], tuple):
                 try:
-                    # Get original movie details
-                    original_movie_idx = recommender.indices[actual_title]
-                    original_movie_data = recommender.metadata.iloc[original_movie_idx]
-                    original_movie_title = original_movie_data['title']
-                    original_movie_plot = original_movie_data['overview']
-                    original_movie_imdb = original_movie_data['imdb_id_full']
-                    
-                    # Display original movie details
-                    if show_plots:
-                        original_panel = Panel(
-                            f"[bold]{original_movie_title}[/bold]\n\n[italic]{original_movie_plot}[/italic]\n\n"
-                            f"[dim]IMDb: https://www.imdb.com/title/{original_movie_imdb}/[/dim]",
-                            title="[bold blue]Searched Movie[/bold blue]",
-                            border_style="blue",
-                            width=100
-                        )
-                        console.print(original_panel)
+                    # For content-based recommender with plot access
+                    if is_content_based and hasattr(recommender, 'indices') and hasattr(recommender, 'metadata'):
+                        # Get original movie details
+                        original_movie_idx = recommender.indices[actual_title]
+                        original_movie_data = recommender.metadata.iloc[original_movie_idx]
+                        original_movie_title = original_movie_data['title']
+                        original_movie_plot = original_movie_data['overview']
+                        original_movie_imdb = original_movie_data['imdb_id_full']
+                        
+                        # Display original movie details
+                        if show_plots:
+                            original_panel = Panel(
+                                f"[bold]{original_movie_title}[/bold]\n\n[italic]{original_movie_plot}[/italic]\n\n"
+                                f"[dim]IMDb: https://www.imdb.com/title/{original_movie_imdb}/[/dim]",
+                                title="[bold blue]Searched Movie[/bold blue]",
+                                border_style="blue",
+                                width=100
+                            )
+                            console.print(original_panel)
+                        else:
+                            console.print(f"\n[bold blue]Searched Movie:[/bold blue] [bold]{original_movie_title}[/bold]")
+                            console.print(f"[dim]IMDb: https://www.imdb.com/title/{original_movie_imdb}/[/dim]")
                     else:
-                        console.print(f"\n[bold blue]Searched Movie:[/bold blue] [bold]{original_movie_title}[/bold]")
-                        console.print(f"[dim]IMDb: https://www.imdb.com/title/{original_movie_imdb}/[/dim]")
+                        # For association recommender or any other type
+                        console.print(f"\n[bold blue]Recommendations for:[/bold blue] [bold]{actual_title}[/bold]")
                     
                     # Display recommendations table
-                    table = Table(title=f"Top 10 Recommendations for '[italic]{original_movie_title}[/italic]'", show_header=True, header_style="bold magenta")
+                    # Use different title based on recommender type
+                    table_title = f"Top 10 {'Movies Similar to' if is_content_based else 'Movies Liked by People Who Also Liked'} '[italic]{actual_title}[/italic]'"
+                    table = Table(title=table_title, show_header=True, header_style="bold magenta")
                     table.add_column("Rank", style="dim", width=6)
                     table.add_column("Recommended Movie Title")
                     table.add_column("IMDb Link")
@@ -204,7 +294,7 @@ def run_ui(recommender):
                     console.print(table)
                     
                     # Display detailed recommendations with plots if enabled
-                    if show_plots:
+                    if show_plots and is_content_based:
                         console.print("\n[bold magenta]Recommended Movies Details:[/bold magenta]")
                         for i, (title, imdb_id) in enumerate(result):
                             try:
@@ -248,19 +338,12 @@ def run_ui(recommender):
             # Case 3: No match found (or search cancelled)
             elif result is None:
                  # Error message was already printed by the recommender or selection function
-                 console.print("[yellow]No recommendations generated.[/yellow]")
-
-            # Case 4: Unexpected result type (should not happen with current recommender)
-            elif result is not None:
-                 console.print(f"[bold red]Unexpected result type from recommender: {type(result)}[/bold red]")
-
-
+                console.print("[bold red]No recommendations found. Try a different movie.[/bold red]")
+                
         except Exception as e:
-            console.print(f"[bold red]An unexpected error occurred: {e}[/bold red]")
-            # import traceback
-            # traceback.print_exc() # Uncomment for detailed error traceback
-
-        console.print("-" * 60) # Separator
+            console.print(f"[bold red]An error occurred: {e}[/bold red]")
+            import traceback
+            traceback.print_exc() # Print detailed error for debugging
 
 if __name__ == '__main__':
     # Example Usage (requires PlotRecommender, data_loader, utils, and dataset)

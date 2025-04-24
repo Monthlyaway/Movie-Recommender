@@ -78,8 +78,35 @@ def load_metadata(data_dir: str = 'dataset', use_name_removed: bool = False) -> 
         # traceback.print_exc() # Uncomment for detailed error traceback
         return pd.DataFrame()
 
+def load_ratings(data_dir: str = 'dataset', use_small: bool = True) -> pd.DataFrame:
+    """
+    Loads ratings data from either ratings_small.csv or ratings.csv.
+    
+    Args:
+        data_dir: The directory containing the dataset files.
+        use_small: Whether to use the smaller ratings dataset (default: True)
+        
+    Returns:
+        A pandas DataFrame containing user ratings.
+    """
+    file_name = 'ratings_small.csv' if use_small else 'ratings.csv'
+    ratings_path = os.path.join(data_dir, file_name)
+    
+    try:
+        print(f"Attempting to load ratings from: {os.path.abspath(ratings_path)}")
+        ratings = pd.read_csv(ratings_path)
+        print("Ratings loaded successfully.")
+        return ratings
+    except FileNotFoundError:
+        print(f"Error: Ratings file not found at {ratings_path}")
+        return pd.DataFrame()
+    except Exception as e:
+        print(f"An error occurred loading ratings: {e}")
+        return pd.DataFrame()
+
 if __name__ == '__main__':
     print(f"Current working directory: {os.getcwd()}")
+    # Test metadata loading
     df = load_metadata()
     if not df.empty:
         print("\nMerged DataFrame Info:")
@@ -99,3 +126,17 @@ if __name__ == '__main__':
             print("Toy Story not found in merged data.")
     else:
         print("\nFailed to load and merge data.")
+        
+    # Test ratings loading
+    ratings_df = load_ratings()
+    if not ratings_df.empty:
+        print("\nRatings DataFrame Info:")
+        ratings_df.info()
+        print("\nFirst 5 rows of ratings data:")
+        print(ratings_df.head())
+        print(f"\nShape: {ratings_df.shape}")
+        print(f"\nUnique users: {ratings_df['userId'].nunique()}")
+        print(f"\nUnique movies: {ratings_df['movieId'].nunique()}")
+        print(f"\nRating distribution:\n{ratings_df['rating'].value_counts().sort_index()}")
+    else:
+        print("\nFailed to load ratings data.")
