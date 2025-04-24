@@ -127,6 +127,14 @@ def run_ui(recommender):
     """
     console.print("[bold cyan]Welcome to the Movie Recommender![/bold cyan]")
     
+    # Try to import the dataset stats module
+    try:
+        from src.utils.dataset_stats import analyze_and_display
+        from src.data_loader import load_ratings
+        has_stats_module = True
+    except ImportError:
+        has_stats_module = False
+    
     # Detect which type of recommender we're using
     recommender_name = recommender.__class__.__name__
     is_simple_recommender = recommender_name == 'SimpleRecommender'
@@ -161,16 +169,24 @@ def run_ui(recommender):
         
         if is_simple_recommender:
             console.print("1. View top rated movies")
+            choices = ["1", "3", "4"] if has_stats_module else ["1", "3"]
         elif is_content_based or is_association_recommender:
             if is_content_based:  # Only Plot recommender has plot details
                 console.print(f"1. Show plots: {'[green]ON[/green]' if show_plots else '[red]OFF[/red]'}")
             else:
                 console.print("1. Display random association rules")
             console.print("2. Search for a movie")
+            choices = ["1", "2", "3", "4"] if has_stats_module else ["1", "2", "3"]
         
-        console.print("3. Quit")
+        # Add dataset statistics option if available
+        if has_stats_module:
+            console.print("3. View dataset statistics")
+            console.print("4. Quit")
+        else:
+            console.print("3. Quit")
         
-        choice = Prompt.ask("\n[bold]Select an option[/bold]", choices=["1", "2", "3"], default="1" if is_simple_recommender else "2")
+        default_choice = "1" if is_simple_recommender else "2"
+        choice = Prompt.ask("\n[bold]Select an option[/bold]", choices=choices, default=default_choice)
         
         if choice == "1":
             if is_simple_recommender:
@@ -228,7 +244,22 @@ def run_ui(recommender):
                 # Association recommender: display random rules
                 display_association_rules(recommender)
             continue
-        elif choice == "3":
+        elif choice == "3" and has_stats_module:
+            # Show dataset statistics
+            console.print("\n[bold]Loading dataset statistics...[/bold]")
+            try:
+                # Get the metadata from the recommender if possible
+                if hasattr(recommender, 'metadata'):
+                    metadata_df = recommender.metadata
+                    # Try to load ratings data
+                    ratings_df = load_ratings()
+                    analyze_and_display(metadata_df, ratings_df)
+                else:
+                    console.print("[bold red]Cannot access dataset. Try running 'python src/main.py stats' instead.[/bold red]")
+            except Exception as e:
+                console.print(f"[bold red]Error displaying statistics: {e}[/bold red]")
+            continue
+        elif (choice == "3" and not has_stats_module) or (choice == "4" and has_stats_module):
             console.print("[bold yellow]Goodbye![/bold yellow]")
             break
         

@@ -14,6 +14,7 @@ try:
     from src.recommenders.simple_recommender import SimpleRecommender
     from src.recommenders.association_recommender import AssociationRecommender
     from src.ui.cli import run_ui
+    from src.utils.dataset_stats import analyze_and_display
 except ImportError as e:
     print(f"Error importing modules: {e}")
     print("Please ensure you are running this script from the project root directory")
@@ -62,6 +63,9 @@ def setup_parser():
     assoc_parser.add_argument('--rating-threshold', type=float, default=3.5,
                             help='Minimum rating to consider a movie as liked (default: 3.5)')
     
+    # Dataset Statistics (utility)
+    stats_parser = subparsers.add_parser('stats', help='Show dataset statistics')
+    
     return parser
 
 # --- Main Execution ---
@@ -71,7 +75,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     print("--- Movie Recommender System ---")
-    print(f"Recommender: {args.recommender.capitalize()}")
+    print(f"Mode: {args.recommender.capitalize()}")
     if args.use_name_removed:
         print("Using metadata with person names removed from plot overviews")
     print(f"Current working directory: {os.getcwd()}")
@@ -83,6 +87,13 @@ if __name__ == "__main__":
     if metadata_df.empty:
         print("\nFatal Error: Could not load metadata. Exiting.")
         sys.exit(1)
+        
+    # Special case: if we're just showing stats, do that and exit
+    if args.recommender == 'stats':
+        # Load ratings data too for more complete stats
+        ratings_df = load_ratings(DATA_DIRECTORY)
+        analyze_and_display(metadata_df, ratings_df)
+        sys.exit(0)
 
     # 2. Initialize and Fit Selected Recommender
     print(f"\nInitializing {args.recommender.capitalize()} Recommender...")
