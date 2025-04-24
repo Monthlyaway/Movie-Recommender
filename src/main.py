@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.dirname(project_root)) # Add the parent directory (Mo
 try:
     from src.data_loader import load_metadata
     from src.recommenders.plot_recommender import PlotRecommender
+    from src.recommenders.simple_recommender import SimpleRecommender
     from src.ui.cli import run_ui
 except ImportError as e:
     print(f"Error importing modules: {e}")
@@ -26,11 +27,16 @@ DATA_DIRECTORY = 'dataset' # Relative path from project root
 if __name__ == "__main__":
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Movie Recommender System')
+    parser.add_argument('--recommender', type=str, choices=['simple', 'plot'], 
+                        default='plot', help='Recommender type to use')
     parser.add_argument('--use-name-removed', action='store_true',
                        help='Use the version of metadata with person names removed from overviews')
+    parser.add_argument('--percentile', type=float, default=0.90,
+                       help='Vote count percentile threshold for simple recommender (default: 0.90)')
     args = parser.parse_args()
 
     print("--- Movie Recommender System ---")
+    print(f"Recommender: {args.recommender.capitalize()}")
     if args.use_name_removed:
         print("Using metadata with person names removed from plot overviews")
     print(f"Current working directory: {os.getcwd()}")
@@ -43,23 +49,26 @@ if __name__ == "__main__":
         print("\nFatal Error: Could not load metadata. Exiting.")
         sys.exit(1)
 
-    # 2. Initialize and Fit Recommender (Plot-based for now)
-    # TODO: Add logic here later to select different recommenders
-    print("\nInitializing Plot Recommender...")
-    plot_recommender = PlotRecommender()
+    # 2. Initialize and Fit Selected Recommender
+    print(f"\nInitializing {args.recommender.capitalize()} Recommender...")
+    
+    if args.recommender == 'simple':
+        recommender = SimpleRecommender(vote_count_percentile=args.percentile)
+    else:  # Default to plot recommender
+        recommender = PlotRecommender()
+        
     try:
-        plot_recommender.fit(metadata_df)
+        recommender.fit(metadata_df)
         print("Recommender fitting successful.")
     except Exception as e:
         print(f"\nFatal Error: Failed to fit the recommender: {e}")
         # Optionally log the full traceback
         sys.exit(1)
 
-
     # 3. Run Command-Line Interface
     print("\nStarting Command-Line Interface...")
     try:
-        run_ui(plot_recommender)
+        run_ui(recommender)
     except Exception as e:
         print(f"\nFatal Error: An error occurred during UI execution: {e}")
         # Optionally log the full traceback

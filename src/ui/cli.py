@@ -63,27 +63,82 @@ def run_ui(recommender):
     """
     console.print("[bold cyan]Welcome to the Movie Recommender![/bold cyan]")
     
+    # Detect which type of recommender we're using
+    is_simple_recommender = recommender.__class__.__name__ == 'SimpleRecommender'
+    if is_simple_recommender:
+        console.print(f"[bold]Using Simple Movie Recommender[/bold] (IMDB Weighted Rating Formula)")
+        if hasattr(recommender, 'get_details'):
+            details = recommender.get_details()
+            console.print(f"Minimum votes threshold: {details.get('minimum_vote_threshold', 'N/A'):.0f}")
+            console.print(f"Mean rating across all movies: {details.get('mean_vote_threshold', 'N/A'):.2f}")
+            console.print(f"Total qualified movies: {details.get('qualified_movies_count', 'N/A')}")
+    else:
+        console.print(f"[bold]Using Plot-Based Movie Recommender[/bold]")
+    
     # User preferences
     show_plots = True
 
     while True:
         # Show options menu
         console.print("\n[bold]Options:[/bold]")
-        console.print(f"1. Show plots: {'[green]ON[/green]' if show_plots else '[red]OFF[/red]'}")
-        console.print("2. Search for a movie")
+        
+        if is_simple_recommender:
+            console.print("1. View top rated movies")
+        else:
+            console.print(f"1. Show plots: {'[green]ON[/green]' if show_plots else '[red]OFF[/red]'}")
+            console.print("2. Search for a movie")
+        
         console.print("3. Quit")
         
-        choice = Prompt.ask("\n[bold]Select an option[/bold]", choices=["1", "2", "3"], default="2")
+        choice = Prompt.ask("\n[bold]Select an option[/bold]", choices=["1", "2", "3"], default="1" if is_simple_recommender else "2")
         
         if choice == "1":
-            show_plots = not show_plots
-            console.print(f"Plot display is now {'[green]ON[/green]' if show_plots else '[red]OFF[/red]'}")
+            if is_simple_recommender:
+                # Simple recommender: get top movies
+                try:
+                    top_n = Prompt.ask("\nHow many top movies to display?", default="10")
+                    top_n = int(top_n)
+                    if top_n <= 0:
+                        console.print("[bold red]Please enter a positive number.[/bold red]")
+                        continue
+                        
+                    console.print(f"\nFetching top {top_n} movies by weighted rating...")
+                    result = recommender.recommend(top_n=top_n)
+                    
+                    if result:
+                        # Display results table
+                        table = Table(title=f"Top {top_n} Movies by Weighted Rating", show_header=True, header_style="bold magenta")
+                        table.add_column("Rank", style="dim", width=6)
+                        table.add_column("Movie Title")
+                        table.add_column("IMDb Link")
+                        
+                        for i, (title, imdb_id) in enumerate(result):
+                            link = f"https://www.imdb.com/title/{imdb_id}/" if imdb_id else "[dim]N/A[/dim]"
+                            table.add_row(str(i + 1), title, link)
+                            
+                        console.print(table)
+                    else:
+                        console.print("[bold red]No results returned from recommender.[/bold red]")
+                    
+                except ValueError:
+                    console.print("[bold red]Please enter a valid number.[/bold red]")
+                except Exception as e:
+                    console.print(f"[bold red]An error occurred: {e}[/bold red]")
+            else:
+                # Plot recommender: toggle plot display
+                show_plots = not show_plots
+                console.print(f"Plot display is now {'[green]ON[/green]' if show_plots else '[red]OFF[/red]'}")
             continue
         elif choice == "3":
             console.print("[bold yellow]Goodbye![/bold yellow]")
             break
         
-        # Option 2: Search for a movie
+        # Option 2: Only relevant for plot recommender
+        if is_simple_recommender:
+            console.print("[bold yellow]Invalid option for the Simple Recommender.[/bold yellow]")
+            continue
+            
+        # Search for a movie with the plot recommender
         movie_title_input = Prompt.ask("\n[bold green]Enter a movie title to get recommendations[/bold green]")
 
         if not movie_title_input:
@@ -218,6 +273,12 @@ if __name__ == '__main__':
         sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) # Add project root
         from src.data_loader import load_metadata
         from src.recommenders.plot_recommender import PlotRecommender
+        # Try to import SimpleRecommender if available
+        try:
+            from src.recommenders.simple_recommender import SimpleRecommender
+            has_simple_recommender = True
+        except ImportError:
+            has_simple_recommender = False
     except ImportError as e:
         print("\nError: Could not import necessary modules.")
         print(f"Details: {e}")
@@ -230,7 +291,20 @@ if __name__ == '__main__':
 
     if not metadata.empty:
         print("Initializing and fitting recommender for UI example...")
-        recommender = PlotRecommender()
+        # Let user choose recommender type if both are available
+        recommender_type = "plot"
+        if has_simple_recommender:
+            recommender_type = Prompt.ask(
+                "Choose recommender type", 
+                choices=["plot", "simple"], 
+                default="plot"
+            )
+            
+        if recommender_type == "simple" and has_simple_recommender:
+            recommender = SimpleRecommender()
+        else:
+            recommender = PlotRecommender()
+            
         recommender.fit(metadata)
         print("Starting UI...")
         run_ui(recommender)
