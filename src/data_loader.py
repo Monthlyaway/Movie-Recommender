@@ -2,19 +2,21 @@ import pandas as pd
 import os
 import numpy as np # For handling potential NaN during merge
 
-def load_metadata(data_dir: str = 'dataset') -> pd.DataFrame:
+def load_metadata(data_dir: str = 'dataset', use_name_removed: bool = False) -> pd.DataFrame:
     """
-    Loads and merges movies_metadata.csv and links.csv.
+    Loads and merges movies_metadata.csv (or movies_metadata_name_removed.csv) and links_small.csv.
 
     Args:
         data_dir: The directory containing the dataset files.
+        use_name_removed: Whether to use the version with person names removed from overviews.
 
     Returns:
         A pandas DataFrame containing merged movie metadata including titles,
         overviews, and IMDb IDs. Returns an empty DataFrame on error.
     """
-    metadata_path = os.path.join(data_dir, 'movies_metadata.csv')
-    links_path = os.path.join(data_dir, 'links.csv') # Or links.csv if using full dataset
+    metadata_filename = 'movies_metadata_name_removed.csv' if use_name_removed else 'movies_metadata.csv'
+    metadata_path = os.path.join(data_dir, metadata_filename)
+    links_path = os.path.join(data_dir, 'links_small.csv') # Or links.csv if using full dataset
 
     try:
         print(f"Attempting to load metadata from: {os.path.abspath(metadata_path)}")

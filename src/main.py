@@ -1,5 +1,6 @@
 import os
 import sys
+import argparse
 
 # Add the src directory to the Python path to allow absolute imports
 # This makes the script runnable from the project root (Movie-Recommender/)
@@ -23,12 +24,20 @@ DATA_DIRECTORY = 'dataset' # Relative path from project root
 
 # --- Main Execution ---
 if __name__ == "__main__":
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Movie Recommender System')
+    parser.add_argument('--use-name-removed', action='store_true',
+                       help='Use the version of metadata with person names removed from overviews')
+    args = parser.parse_args()
+
     print("--- Movie Recommender System ---")
+    if args.use_name_removed:
+        print("Using metadata with person names removed from plot overviews")
     print(f"Current working directory: {os.getcwd()}")
     print(f"Loading data from: {os.path.abspath(DATA_DIRECTORY)}")
 
     # 1. Load Data
-    metadata_df = load_metadata(DATA_DIRECTORY)
+    metadata_df = load_metadata(DATA_DIRECTORY, use_name_removed=args.use_name_removed)
 
     if metadata_df.empty:
         print("\nFatal Error: Could not load metadata. Exiting.")
