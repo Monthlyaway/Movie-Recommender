@@ -186,17 +186,33 @@ def run_ui(recommender):
                     result = recommender.recommend(top_n=top_n)
                     
                     if result:
+                        # Unpack results and parameters if returned in new format
+                        if isinstance(result, tuple) and len(result) == 2:
+                            recommendations, params = result
+                        else:
+                            recommendations = result
+                            params = None
+                        
                         # Display results table
                         table = Table(title=f"Top {top_n} Movies by Weighted Rating", show_header=True, header_style="bold magenta")
                         table.add_column("Rank", style="dim", width=6)
                         table.add_column("Movie Title")
                         table.add_column("IMDb Link")
                         
-                        for i, (title, imdb_id) in enumerate(result):
+                        for i, (title, imdb_id) in enumerate(recommendations):
                             link = f"https://www.imdb.com/title/{imdb_id}/" if imdb_id else "[dim]N/A[/dim]"
                             table.add_row(str(i + 1), title, link)
                             
                         console.print(table)
+                        
+                        # Display Weighted Rating Parameters if available
+                        if params and 'C' in params and 'm' in params:
+                            params_table = Table(title="Weighted Rating Parameters", show_header=True, header_style="bold cyan")
+                            params_table.add_column("Parameter", width=30)
+                            params_table.add_column("Value", width=15)
+                            params_table.add_row("Global Mean Rating (C)", f"{params['C']}")
+                            params_table.add_row("Minimum Votes Threshold (m)", f"{params['m']}")
+                            console.print(params_table)
                     else:
                         console.print("[bold red]No results returned from recommender.[/bold red]")
                     

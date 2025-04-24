@@ -92,7 +92,9 @@ class SimpleRecommender:
             top_n: Number of movies to recommend
             
         Returns:
-            List of (movie_title, imdb_id_full) tuples
+            Tuple of (recommendations list, parameters dict)
+            - List of (movie_title, imdb_id_full) tuples
+            - Dict containing C and m values
         """
         if self.qualified_movies is None:
             print("Error: Recommender has not been fitted. Call fit() first.")
@@ -108,8 +110,14 @@ class SimpleRecommender:
             # Handle case where imdb_id_full might not exist
             imdb_id = movie.get('imdb_id_full', None)
             results.append((movie['title'], imdb_id))
+        
+        # Include C and m parameters in the return
+        params = {
+            "C": round(self.C, 2),  # global mean rating
+            "m": int(self.m)        # minimum votes threshold
+        }
             
-        return results
+        return results, params
     
     def get_details(self):
         """
@@ -154,7 +162,7 @@ if __name__ == "__main__":
         recommender.fit(metadata_df)
         
         # Get top 10 recommendations
-        recommendations = recommender.recommend(top_n=10)
+        recommendations, params = recommender.recommend(top_n=10)
         
         # Print results
         print("\nTop 10 Movies by Weighted Rating:")
@@ -162,5 +170,7 @@ if __name__ == "__main__":
         for i, (title, imdb_id) in enumerate(recommendations):
             link = f"https://www.imdb.com/title/{imdb_id}/" if imdb_id else "N/A"
             print(f"{i+1}. {title} - {link}")
+        print("\nParameters:")
+        print(params)
     else:
         print("Failed to load metadata.") 
