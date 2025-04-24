@@ -1,6 +1,8 @@
 from rich.console import Console
 from rich.prompt import Prompt
 from rich.table import Table
+from rich.panel import Panel
+from rich.columns import Columns
 import os
 from typing import List, Optional, Union, Tuple # Import necessary types
 
@@ -60,13 +62,29 @@ def run_ui(recommender):
                      - None if no match found.
     """
     console.print("[bold cyan]Welcome to the Movie Recommender![/bold cyan]")
+    
+    # User preferences
+    show_plots = True
 
     while True:
-        movie_title_input = Prompt.ask("\n[bold green]Enter a movie title to get recommendations (or type 'quit' to exit)[/bold green]")
-
-        if movie_title_input.lower() == 'quit':
+        # Show options menu
+        console.print("\n[bold]Options:[/bold]")
+        console.print(f"1. Show plots: {'[green]ON[/green]' if show_plots else '[red]OFF[/red]'}")
+        console.print("2. Search for a movie")
+        console.print("3. Quit")
+        
+        choice = Prompt.ask("\n[bold]Select an option[/bold]", choices=["1", "2", "3"], default="2")
+        
+        if choice == "1":
+            show_plots = not show_plots
+            console.print(f"Plot display is now {'[green]ON[/green]' if show_plots else '[red]OFF[/red]'}")
+            continue
+        elif choice == "3":
             console.print("[bold yellow]Goodbye![/bold yellow]")
             break
+        
+        # Option 2: Search for a movie
+        movie_title_input = Prompt.ask("\n[bold green]Enter a movie title to get recommendations[/bold green]")
 
         if not movie_title_input:
             console.print("[bold red]Please enter a movie title.[/bold red]")
@@ -76,6 +94,9 @@ def run_ui(recommender):
         try:
             # Initial recommendation call
             result = recommender.recommend(movie_title_input, top_n=10)
+            
+            # Track the actual title we'll use (handles fuzzy match cases)
+            actual_title = movie_title_input
 
             # --- Handle Different Result Types ---
 
@@ -86,22 +107,88 @@ def run_ui(recommender):
                     console.print(f"\nFetching recommendations for selected title '[italic]{selected_title}[/italic]'...")
                     # Call recommend again with the selected title (should be an exact match now)
                     result = recommender.recommend(selected_title, top_n=10)
+                    actual_title = selected_title
                 else:
                     console.print("[yellow]Search cancelled.[/yellow]")
                     result = None # Treat cancellation as no result found for display logic
 
             # Case 2: Exact match recommendations returned (or after selection)
             if isinstance(result, list) and result and isinstance(result[0], tuple):
-                table = Table(title=f"Top 10 Recommendations for '[italic]{movie_title_input}[/italic]'", show_header=True, header_style="bold magenta")
-                table.add_column("Rank", style="dim", width=6)
-                table.add_column("Recommended Movie Title")
-                table.add_column("IMDb Link") # New column for links
+                try:
+                    # Get original movie details
+                    original_movie_idx = recommender.indices[actual_title]
+                    original_movie_data = recommender.metadata.iloc[original_movie_idx]
+                    original_movie_title = original_movie_data['title']
+                    original_movie_plot = original_movie_data['overview']
+                    original_movie_imdb = original_movie_data['imdb_id_full']
+                    
+                    # Display original movie details
+                    if show_plots:
+                        original_panel = Panel(
+                            f"[bold]{original_movie_title}[/bold]\n\n[italic]{original_movie_plot}[/italic]\n\n"
+                            f"[dim]IMDb: https://www.imdb.com/title/{original_movie_imdb}/[/dim]",
+                            title="[bold blue]Searched Movie[/bold blue]",
+                            border_style="blue",
+                            width=100
+                        )
+                        console.print(original_panel)
+                    else:
+                        console.print(f"\n[bold blue]Searched Movie:[/bold blue] [bold]{original_movie_title}[/bold]")
+                        console.print(f"[dim]IMDb: https://www.imdb.com/title/{original_movie_imdb}/[/dim]")
+                    
+                    # Display recommendations table
+                    table = Table(title=f"Top 10 Recommendations for '[italic]{original_movie_title}[/italic]'", show_header=True, header_style="bold magenta")
+                    table.add_column("Rank", style="dim", width=6)
+                    table.add_column("Recommended Movie Title")
+                    table.add_column("IMDb Link")
 
-                for i, (title, imdb_id) in enumerate(result):
-                    link = f"https://www.imdb.com/title/{imdb_id}/" if imdb_id else "[dim]N/A[/dim]"
-                    table.add_row(str(i + 1), title, link)
+                    for i, (title, imdb_id) in enumerate(result):
+                        link = f"https://www.imdb.com/title/{imdb_id}/" if imdb_id else "[dim]N/A[/dim]"
+                        table.add_row(str(i + 1), title, link)
 
-                console.print(table)
+                    console.print(table)
+                    
+                    # Display detailed recommendations with plots if enabled
+                    if show_plots:
+                        console.print("\n[bold magenta]Recommended Movies Details:[/bold magenta]")
+                        for i, (title, imdb_id) in enumerate(result):
+                            try:
+                                # Find the movie data in the metadata
+                                movie_idx = recommender.indices[title]
+                                movie_data = recommender.metadata.iloc[movie_idx]
+                                movie_plot = movie_data['overview']
+                                
+                                # Create a panel for each recommended movie
+                                rec_panel = Panel(
+                                    f"[bold]{title}[/bold]\n\n[italic]{movie_plot}[/italic]\n\n"
+                                    f"[dim]IMDb: https://www.imdb.com/title/{imdb_id}/[/dim]",
+                                    title=f"[bold green]#{i+1} Recommendation[/bold green]",
+                                    border_style="green",
+                                    width=100
+                                )
+                                console.print(rec_panel)
+                            except (KeyError, IndexError) as e:
+                                console.print(f"[yellow]Could not retrieve full details for '{title}': {e}[/yellow]")
+                                continue
+                            
+                            # Ask if user wants to see more details after each recommendation
+                            if i < len(result) - 1:
+                                see_more = Prompt.ask("\nSee next recommendation?", choices=["y", "n"], default="y")
+                                if see_more.lower() == "n":
+                                    break
+                except (KeyError, IndexError) as e:
+                    console.print(f"[bold red]Error retrieving movie details: {e}[/bold red]")
+                    # Still show the basic recommendation table
+                    table = Table(title=f"Top 10 Recommendations", show_header=True, header_style="bold magenta")
+                    table.add_column("Rank", style="dim", width=6)
+                    table.add_column("Recommended Movie Title")
+                    table.add_column("IMDb Link")
+
+                    for i, (title, imdb_id) in enumerate(result):
+                        link = f"https://www.imdb.com/title/{imdb_id}/" if imdb_id else "[dim]N/A[/dim]"
+                        table.add_row(str(i + 1), title, link)
+
+                    console.print(table)
 
             # Case 3: No match found (or search cancelled)
             elif result is None:

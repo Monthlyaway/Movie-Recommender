@@ -4,7 +4,7 @@ import numpy as np # For handling potential NaN during merge
 
 def load_metadata(data_dir: str = 'dataset') -> pd.DataFrame:
     """
-    Loads and merges movies_metadata.csv and links_small.csv.
+    Loads and merges movies_metadata.csv and links.csv.
 
     Args:
         data_dir: The directory containing the dataset files.
@@ -14,7 +14,7 @@ def load_metadata(data_dir: str = 'dataset') -> pd.DataFrame:
         overviews, and IMDb IDs. Returns an empty DataFrame on error.
     """
     metadata_path = os.path.join(data_dir, 'movies_metadata.csv')
-    links_path = os.path.join(data_dir, 'links_small.csv') # Or links.csv if using full dataset
+    links_path = os.path.join(data_dir, 'links.csv') # Or links.csv if using full dataset
 
     try:
         print(f"Attempting to load metadata from: {os.path.abspath(metadata_path)}")
