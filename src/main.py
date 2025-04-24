@@ -60,8 +60,8 @@ def setup_parser():
                             help='Minimum confidence for association rules (default: 0.3)')
     assoc_parser.add_argument('--min-lift', type=float, default=1.2,
                             help='Minimum lift for association rules (default: 1.2)')
-    assoc_parser.add_argument('--rating-threshold', type=float, default=3.5,
-                            help='Minimum rating to consider a movie as liked (default: 3.5)')
+    assoc_parser.add_argument('--rating-threshold', type=float, default=6,
+                            help='Minimum rating to consider a movie as liked (default: 6)')
     
     # Dataset Statistics (utility)
     stats_parser = subparsers.add_parser('stats', help='Show dataset statistics')
@@ -115,7 +115,13 @@ if __name__ == "__main__":
             rating_threshold=args.rating_threshold
         )
         # Association recommender needs both metadata and ratings
-        recommender.fit(metadata_df, ratings_df)
+        result = recommender.fit(metadata_df, ratings_df)
+        
+        # Check if fitting was successful
+        if result is None:
+            print("\nFatal Error: AssociationRecommender fitting failed. Exiting.")
+            print("Try adjusting the parameters as suggested above.")
+            sys.exit(1)
     else:  # Default to plot recommender
         recommender = PlotRecommender()
         recommender.fit(metadata_df)

@@ -20,15 +20,15 @@ class AssociationRecommender:
     "users who liked Movie A also liked Movie B."
     """
     
-    def __init__(self, min_support=0.06, min_confidence=0.3, min_lift=1.2, rating_threshold=3.5):
+    def __init__(self, min_support=0.06, min_confidence=0.3, min_lift=1.2, rating_threshold=6):
         """
         Initialize the recommender.
         
         Args:
-            min_support: Minimum support threshold for FP-Growth (default: 0.06 or 1%)
+            min_support: Minimum support threshold for FP-Growth (default: 0.06)
             min_confidence: Minimum confidence for rules (default: 0.3 or 30%)
             min_lift: Minimum lift for rules (default: 1.2)
-            rating_threshold: Minimum rating to consider a movie as "liked" (default: 3.5)
+            rating_threshold: Minimum rating to consider a movie as "liked" (default: 6)
         """
         self.min_support = min_support
         self.min_confidence = min_confidence
@@ -47,6 +47,9 @@ class AssociationRecommender:
         Args:
             metadata_df: DataFrame containing movie metadata with id and title
             ratings_df: DataFrame containing user ratings with userId, movieId, rating
+            
+        Returns:
+            self: The fitted recommender or None if fitting fails
         """
         print("Fitting AssociationRecommender...")
         # Store metadata for later use
@@ -60,6 +63,13 @@ class AssociationRecommender:
         # 2. Filter ratings to only include "liked" movies
         print(f"Filtering ratings with threshold {self.rating_threshold}...")
         liked_ratings = ratings_df[ratings_df['rating'] >= self.rating_threshold]
+        
+        # Check if we have enough ratings after filtering
+        if len(liked_ratings) < 100:  # Arbitrary threshold, adjust as needed
+            print(f"\nERROR: Not enough ratings meet the threshold of {self.rating_threshold}.")
+            print(f"Only {len(liked_ratings)} ratings out of {len(ratings_df)} exceed this threshold.")
+            print("Consider lowering the rating threshold or using a larger dataset.")
+            return None
         
         # 3. Group ratings by user to create transactions
         print("Creating user transactions...")
@@ -81,23 +91,55 @@ class AssociationRecommender:
             use_colnames=True
         )
         
+        # Check if any frequent itemsets were found
+        if len(self.frequent_itemsets) == 0:
+            print(f"\nERROR: No frequent itemsets found with min_support={self.min_support}.")
+            print("This can happen when:")
+            print(f"1. The rating threshold is too high (current: {self.rating_threshold})")
+            print(f"2. The minimum support is too high (current: {self.min_support})")
+            print("3. There aren't enough common patterns in the dataset")
+            print("\nPossible solutions:")
+            print("- Lower the rating threshold (--rating-threshold option)")
+            print("- Lower the minimum support (--min-support option)")
+            print("- Use a larger dataset")
+            return None
+        
         # 6. Generate association rules
-        print(f"Generating association rules with min_confidence={self.min_confidence}...")
-        from mlxtend.frequent_patterns import association_rules
-        self.rules = association_rules(
-            self.frequent_itemsets, 
-            metric="confidence", 
-            min_threshold=self.min_confidence
-        )
-        
-        # 7. Filter rules by lift
-        print(f"Filtering rules by lift >= {self.min_lift}...")
-        self.rules = self.rules[self.rules['lift'] >= self.min_lift]
-        
-        print(f"Association recommender fitted with {len(self.rules)} rules.")
-        print(f"Generated from {len(transactions)} user transactions.")
-        
-        return self
+        try:
+            print(f"Generating association rules with min_confidence={self.min_confidence}...")
+            from mlxtend.frequent_patterns import association_rules
+            self.rules = association_rules(
+                self.frequent_itemsets, 
+                metric="confidence", 
+                min_threshold=self.min_confidence
+            )
+            
+            # 7. Filter rules by lift
+            print(f"Filtering rules by lift >= {self.min_lift}...")
+            self.rules = self.rules[self.rules['lift'] >= self.min_lift]
+            
+            if len(self.rules) == 0:
+                print(f"\nERROR: No rules found that meet the criteria (min_confidence={self.min_confidence}, min_lift={self.min_lift}).")
+                print("Consider lowering these thresholds to generate more rules.")
+                return None
+                
+            print(f"Association recommender fitted with {len(self.rules)} rules.")
+            print(f"Generated from {len(transactions)} user transactions.")
+            
+            return self
+            
+        except ValueError as e:
+            if "empty" in str(e).lower():
+                print(f"\nERROR: Failed to generate association rules. No frequent itemsets found.")
+                print("This can happen when the rating threshold is too high or minimum support is too high.")
+                print(f"Current settings: rating_threshold={self.rating_threshold}, min_support={self.min_support}")
+                print("\nSuggested actions:")
+                print("1. Lower the rating threshold (--rating-threshold option)")
+                print("2. Lower the minimum support (--min-support option)")
+                print("3. Use a larger dataset with more ratings")
+            else:
+                print(f"\nERROR: An unexpected error occurred: {e}")
+            return None
     
     def _get_imdb_id(self, movie_id):
         """
@@ -280,7 +322,12 @@ if __name__ == "__main__":
     
     if not metadata_df.empty and not ratings_df.empty:
         # Create and fit the recommender
-        recommender = AssociationRecommender(min_support=0.06, min_confidence=0.3)
+        recommender = AssociationRecommender(
+            min_support=0.06, 
+            min_confidence=0.3,
+            min_lift=1.2,
+            rating_threshold=6
+        )
         recommender.fit(metadata_df, ratings_df)
         
         # Get recommendations for a movie
