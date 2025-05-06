@@ -9,6 +9,8 @@ slightly lower ratings but many votes.
 
 import pandas as pd
 import numpy as np
+from src.utils.weighted_score import weighted_rating, calculate_all_weighted_scores
+from src.data_loader import load_ratings
 
 class SimpleRecommender:
     """
@@ -34,6 +36,7 @@ class SimpleRecommender:
         self.C = None  # Mean vote across all movies
         self.m = None  # Minimum votes required
         self.qualified_movies = None
+        self.ratings_df = None  # Store ratings data
         
     def fit(self, metadata_df):
         """
@@ -48,17 +51,57 @@ class SimpleRecommender:
         if missing_columns:
             raise ValueError(f"Missing required columns: {missing_columns}")
             
-        # Calculate the mean vote across all movies
-        self.C = metadata_df['vote_average'].mean()
+        # Calculate weighted scores using the utility function
+        weighted_scores_result = calculate_all_weighted_scores(
+            metadata_df, 
+            vote_count_percentile=self.vote_count_percentile
+        )
         
-        # Calculate the minimum votes required (90th percentile)
-        self.m = metadata_df['vote_count'].quantile(self.vote_count_percentile)
+        self.C = weighted_scores_result['C']
+        self.m = weighted_scores_result['m']
         
         # Filter for movies with enough votes
         qualified = metadata_df.copy().loc[metadata_df['vote_count'] >= self.m]
         
-        # Calculate the weighted score
-        qualified['score'] = qualified.apply(self._weighted_rating, axis=1)
+        # Apply the weighted scores
+        qualified['score'] = weighted_scores_result['scores'].loc[qualified.index]
+        
+        # Load ratings data
+        print("Loading ratings data...")
+        self.ratings_df = load_ratings()
+        
+        # Track the original rating scale
+        self.original_rating_scale = 5  # Default assumption
+        
+        # Calculate average user rating per movie from ratings.csv
+        if not self.ratings_df.empty:
+            try:
+                avg_ratings = self.ratings_df.groupby('movieId')['rating'].mean().reset_index()
+                avg_ratings.rename(columns={'rating': 'avg_user_rating'}, inplace=True)
+                
+                # Check the scale of ratings
+                max_rating = self.ratings_df['rating'].max()
+                self.original_rating_scale = max_rating  # Store the original scale
+                print(f"Maximum user rating in dataset: {max_rating}")
+                
+                # If ratings are on a scale other than 10, normalize to 1-10 scale
+                if max_rating != 10 and max_rating > 0:
+                    scale_factor = 10.0 / max_rating
+                    print(f"Normalizing user ratings from 1-{max_rating} to 1-10 scale (factor: {scale_factor})")
+                    avg_ratings['avg_user_rating'] = avg_ratings['avg_user_rating'] * scale_factor
+                
+                # Merge average user ratings with qualified movies
+                qualified = pd.merge(qualified, avg_ratings, left_on='movieId', right_on='movieId', how='left')
+                
+                # Fill NaN values for movies that don't have user ratings
+                qualified['avg_user_rating'] = qualified['avg_user_rating'].fillna(0)
+                print(f"Added average user ratings for {qualified['avg_user_rating'].notna().sum()} movies")
+            except Exception as e:
+                print(f"Error processing ratings data: {e}")
+                qualified['avg_user_rating'] = 0
+        else:
+            print("No ratings data available.")
+            qualified['avg_user_rating'] = 0
         
         # Sort by score
         self.qualified_movies = qualified.sort_values('score', ascending=False)
@@ -68,20 +111,6 @@ class SimpleRecommender:
         print(f"Minimum votes (m): {self.m:.0f}")
         
         return self
-    
-    def _weighted_rating(self, x):
-        """
-        Calculate the weighted rating for a movie.
-        
-        Args:
-            x: Series containing vote_count and vote_average for a movie
-            
-        Returns:
-            float: Weighted score
-        """
-        v = x['vote_count']
-        R = x['vote_average']
-        return (v / (v + self.m) * R) + (self.m / (v + self.m) * self.C)
     
     def recommend(self, movie_title=None, top_n=10):
         """
@@ -93,7 +122,7 @@ class SimpleRecommender:
             
         Returns:
             Tuple of (recommendations list, parameters dict)
-            - List of (movie_title, imdb_id_full) tuples
+            - List of (movie_title, imdb_id_full, weighted_score, avg_user_rating) tuples
             - Dict containing C and m values
         """
         if self.qualified_movies is None:
@@ -103,18 +132,21 @@ class SimpleRecommender:
         # Return the top N movies
         top_movies = self.qualified_movies.head(top_n)
         
-        # Format the output to match other recommenders
-        # Return list of tuples with (title, imdb_id)
+        # Format the output to include weighted scores and user ratings
         results = []
         for _, movie in top_movies.iterrows():
             # Handle case where imdb_id_full might not exist
             imdb_id = movie.get('imdb_id_full', None)
-            results.append((movie['title'], imdb_id))
+            weighted_score = float(movie['score'])
+            avg_user_rating = float(movie.get('avg_user_rating', 0))
+            
+            results.append((movie['title'], imdb_id, weighted_score, avg_user_rating))
         
         # Include C and m parameters in the return
         params = {
             "C": round(self.C, 2),  # global mean rating
-            "m": int(self.m)        # minimum votes threshold
+            "m": int(self.m),       # minimum votes threshold
+            "rating_scale": self.original_rating_scale
         }
             
         return results, params
@@ -167,9 +199,11 @@ if __name__ == "__main__":
         # Print results
         print("\nTop 10 Movies by Weighted Rating:")
         print("-" * 60)
-        for i, (title, imdb_id) in enumerate(recommendations):
+        print(f"{'Rank':<4} | {'Title':<40} | {'IMDb ID':<12} | {'Weighted Score':<15} | {'User Rating':<10}")
+        print("-" * 100)
+        for i, (title, imdb_id, weighted_score, avg_user_rating) in enumerate(recommendations):
             link = f"https://www.imdb.com/title/{imdb_id}/" if imdb_id else "N/A"
-            print(f"{i+1}. {title} - {link}")
+            print(f"{i+1:<4} | {title[:40]:<40} | {imdb_id or 'N/A':<12} | {weighted_score:.2f:<15} | {avg_user_rating:.1f}")
         print("\nParameters:")
         print(params)
     else:

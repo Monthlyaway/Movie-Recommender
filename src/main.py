@@ -6,7 +6,8 @@ import argparse
 # This makes the script runnable from the project root (Movie-Recommender/)
 # using 'python src/main.py'
 project_root = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(project_root)) # Add the parent directory (Movie-Recommender)
+# Add the parent directory (Movie-Recommender)
+sys.path.insert(0, os.path.dirname(project_root))
 
 try:
     from src.data_loader import load_metadata, load_ratings
@@ -23,50 +24,65 @@ except ImportError as e:
     sys.exit(1)
 
 # --- Configuration ---
-DATA_DIRECTORY = 'dataset' # Relative path from project root
+DATA_DIRECTORY = 'dataset'  # Relative path from project root
+
 
 def setup_parser():
     """
     Set up command-line argument parser with subparsers for each recommender type.
-    
+
     Returns:
         argparse.ArgumentParser: The configured parser
     """
     parser = argparse.ArgumentParser(description='Movie Recommender System')
-    
+
     # Global options that apply to all recommenders
-    parser.add_argument('--use-name-removed', action='store_true',
-                      help='Use the version of metadata with person names removed from overviews')
-    
+    parser.add_argument('--use-name-removed', action='store_true', default=True,
+                        help='Use the version of metadata with person names removed from overviews (default)')
+    parser.add_argument('--use-original', action='store_true',
+                        help='Use the original metadata without removing person names from overviews')
+
     # Create subparsers for each recommender type
-    subparsers = parser.add_subparsers(dest='recommender', help='Recommender type to use')
-    
+    subparsers = parser.add_subparsers(
+        dest='recommender', help='Recommender type to use')
+
     # Default recommender if none specified
     parser.set_defaults(recommender='plot')
-    
+
     # Plot Recommender (content-based)
-    plot_parser = subparsers.add_parser('plot', help='Content-based recommender using plot similarity')
-    
+    plot_parser = subparsers.add_parser(
+        'plot', help='Content-based recommender using plot similarity')
+    plot_parser.add_argument('--hybrid', action='store_true',
+                             help='Use hybrid plot recommender with weighted rating integration')
+    plot_parser.add_argument('--similarity-weight', type=float, default=0.7,
+                             help='Weight for plot similarity in hybrid mode (0-1), default: 0.7')
+    plot_parser.add_argument('--percentile', type=float, default=0.90,
+                             help='Vote count percentile threshold for weighted ratings (default: 0.90)')
+
     # Simple Recommender (popularity-based)
-    simple_parser = subparsers.add_parser('simple', help='Simple recommender based on weighted ratings')
+    simple_parser = subparsers.add_parser(
+        'simple', help='Simple recommender based on weighted ratings')
     simple_parser.add_argument('--percentile', type=float, default=0.90,
-                             help='Vote count percentile threshold (default: 0.90)')
-    
+                               help='Vote count percentile threshold (default: 0.90)')
+
     # Association Recommender (collaborative filtering)
-    assoc_parser = subparsers.add_parser('association', help='Association rule mining recommender')
+    assoc_parser = subparsers.add_parser(
+        'association', help='Association rule mining recommender')
     assoc_parser.add_argument('--min-support', type=float, default=0.06,
-                            help='Minimum support threshold for association rules (default: 0.06)')
+                              help='Minimum support threshold for association rules (default: 0.06)')
     assoc_parser.add_argument('--min-confidence', type=float, default=0.3,
-                            help='Minimum confidence for association rules (default: 0.3)')
+                              help='Minimum confidence for association rules (default: 0.3)')
     assoc_parser.add_argument('--min-lift', type=float, default=1.2,
-                            help='Minimum lift for association rules (default: 1.2)')
+                              help='Minimum lift for association rules (default: 1.2)')
     assoc_parser.add_argument('--rating-threshold', type=float, default=6,
-                            help='Minimum rating to consider a movie as liked (default: 6)')
-    
+                              help='Minimum rating to consider a movie as liked (default: 6)')
+
     # Dataset Statistics (utility)
-    stats_parser = subparsers.add_parser('stats', help='Show dataset statistics')
-    
+    stats_parser = subparsers.add_parser(
+        'stats', help='Show dataset statistics')
+
     return parser
+
 
 # --- Main Execution ---
 if __name__ == "__main__":
@@ -76,18 +92,26 @@ if __name__ == "__main__":
 
     print("--- Movie Recommender System ---")
     print(f"Mode: {args.recommender.capitalize()}")
-    if args.use_name_removed:
-        print("Using metadata with person names removed from plot overviews")
+
+    # Handle metadata version selection
+    use_name_removed = True  # Default
+    if hasattr(args, 'use_original') and args.use_original:
+        use_name_removed = False
+        print("Using original metadata with person names in plot overviews")
+    else:
+        print("Using metadata with person names removed from plot overviews (default)")
+
     print(f"Current working directory: {os.getcwd()}")
     print(f"Loading data from: {os.path.abspath(DATA_DIRECTORY)}")
 
     # 1. Load Data
-    metadata_df = load_metadata(DATA_DIRECTORY, use_name_removed=args.use_name_removed)
+    metadata_df = load_metadata(
+        DATA_DIRECTORY, use_name_removed=use_name_removed)
 
     if metadata_df.empty:
         print("\nFatal Error: Could not load metadata. Exiting.")
         sys.exit(1)
-        
+
     # Special case: if we're just showing stats, do that and exit
     if args.recommender == 'stats':
         # Load ratings data too for more complete stats
@@ -97,7 +121,7 @@ if __name__ == "__main__":
 
     # 2. Initialize and Fit Selected Recommender
     print(f"\nInitializing {args.recommender.capitalize()} Recommender...")
-    
+
     if args.recommender == 'simple':
         recommender = SimpleRecommender(vote_count_percentile=args.percentile)
         recommender.fit(metadata_df)
@@ -107,7 +131,7 @@ if __name__ == "__main__":
         if ratings_df.empty:
             print("\nFatal Error: Could not load ratings data. Exiting.")
             sys.exit(1)
-        
+
         recommender = AssociationRecommender(
             min_support=args.min_support,
             min_confidence=args.min_confidence,
@@ -116,16 +140,26 @@ if __name__ == "__main__":
         )
         # Association recommender needs both metadata and ratings
         result = recommender.fit(metadata_df, ratings_df)
-        
+
         # Check if fitting was successful
         if result is None:
             print("\nFatal Error: AssociationRecommender fitting failed. Exiting.")
             print("Try adjusting the parameters as suggested above.")
             sys.exit(1)
     else:  # Default to plot recommender
-        recommender = PlotRecommender()
+        if hasattr(args, 'hybrid') and args.hybrid:
+            print(
+                f"Initializing Hybrid Plot Recommender (similarity weight: {args.similarity_weight}, vote percentile: {args.percentile})")
+            recommender = PlotRecommender(
+                similarity_weight=args.similarity_weight,
+                vote_count_percentile=args.percentile
+            )
+        else:
+            print("Initializing standard Plot Recommender")
+            recommender = PlotRecommender()
+
         recommender.fit(metadata_df)
-        
+
     print("Recommender fitting successful.")
 
     # 3. Run Command-Line Interface

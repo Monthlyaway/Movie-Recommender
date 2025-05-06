@@ -158,7 +158,18 @@ def run_ui(recommender):
             console.print(f"Rating threshold: {details.get('rating_threshold', 'N/A')}")
             console.print(f"Number of rules: {details.get('rules_count', 'N/A')}")
     else:
-        console.print(f"[bold]Using Plot-Based Movie Recommender[/bold]")
+        # Check if it's a hybrid plot recommender
+        is_hybrid = hasattr(recommender, 'get_details') and 'hybrid' in recommender.get_details().get('type', '')
+        
+        if is_hybrid:
+            console.print(f"[bold]Using Hybrid Plot-Based Movie Recommender[/bold]")
+            details = recommender.get_details()
+            console.print(f"Plot similarity weight: {details.get('similarity_weight', 'N/A'):.2f}")
+            console.print(f"Weighted rating weight: {details.get('weighted_rating_weight', 'N/A'):.2f}")
+            console.print(f"Mean rating (C): {details.get('mean_vote_threshold', 'N/A'):.2f}")
+            console.print(f"Minimum votes (m): {details.get('minimum_vote_threshold', 'N/A'):.0f}")
+        else:
+            console.print(f"[bold]Using Plot-Based Movie Recommender[/bold]")
     
     # User preferences
     show_plots = True
@@ -215,9 +226,39 @@ def run_ui(recommender):
                         table.add_column("Movie Title")
                         table.add_column("IMDb Link")
                         
-                        for i, (title, imdb_id) in enumerate(recommendations):
-                            link = f"https://www.imdb.com/title/{imdb_id}/" if imdb_id else "[dim]N/A[/dim]"
-                            table.add_row(str(i + 1), title, link)
+                        # Check if we have additional score data (weighted_score, avg_user_rating)
+                        has_detailed_scores = len(recommendations[0]) > 2
+                        if has_detailed_scores:
+                            table.add_column("Weighted Score (1-10)", width=18)
+                            table.add_column("User Rating (1-10)", width=18)
+                        
+                        for i, rec in enumerate(recommendations):
+                            # Process based on the format of recommendation results
+                            if has_detailed_scores:
+                                # Unpack all data including scores
+                                title, imdb_id, weighted_score, avg_user_rating = rec
+                                
+                                # Format scores for display
+                                score_display = f"[bold cyan]{weighted_score:.2f}[/bold cyan]"
+                                
+                                # Color-code user ratings
+                                if avg_user_rating > 8:
+                                    rating_display = f"[green]{avg_user_rating:.1f}[/green]"
+                                elif avg_user_rating < 4 and avg_user_rating > 0:
+                                    rating_display = f"[red]{avg_user_rating:.1f}[/red]"
+                                elif avg_user_rating == 0:
+                                    rating_display = "[dim]No ratings[/dim]"
+                                else:
+                                    rating_display = f"{avg_user_rating:.1f}"
+                                
+                                # Create the table row with all columns
+                                link = f"https://www.imdb.com/title/{imdb_id}/" if imdb_id else "[dim]N/A[/dim]"
+                                table.add_row(str(i + 1), title, link, score_display, rating_display)
+                            else:
+                                # Original format with just title and IMDb ID
+                                title, imdb_id = rec
+                                link = f"https://www.imdb.com/title/{imdb_id}/" if imdb_id else "[dim]N/A[/dim]"
+                                table.add_row(str(i + 1), title, link)
                             
                         console.print(table)
                         
@@ -228,6 +269,9 @@ def run_ui(recommender):
                             params_table.add_column("Value", width=15)
                             params_table.add_row("Global Mean Rating (C)", f"{params['C']}")
                             params_table.add_row("Minimum Votes Threshold (m)", f"{params['m']}")
+                            if 'rating_scale' in params:
+                                params_table.add_row("Original User Rating Scale", f"1-{params['rating_scale']}")
+                            params_table.add_row("Display Scale", "1-10 (normalized)")
                             console.print(params_table)
                     else:
                         console.print("[bold red]No results returned from recommender.[/bold red]")
@@ -333,27 +377,134 @@ def run_ui(recommender):
                     table.add_column("Rank", style="dim", width=6)
                     table.add_column("Recommended Movie Title")
                     table.add_column("IMDb Link")
+                    
+                    # Add score column for Hybrid Plot Recommender
+                    if is_content_based and len(result[0]) > 2:
+                        # Check if we have the full formula components
+                        has_formula_components = len(result[0]) >= 6
+                        if has_formula_components:
+                            table.add_column("Score Formula", width=40)
+                        else:
+                            table.add_column("Score", width=10)
+                            # Add original rating column if available
+                            if len(result[0]) > 3:
+                                table.add_column("Original Rating", width=14)
 
-                    for i, (title, imdb_id) in enumerate(result):
+                    # Check recommendation format
+                    has_score = is_content_based and len(result[0]) > 2
+                    has_original_rating = is_content_based and len(result[0]) > 3
+                    has_formula_components = is_content_based and len(result[0]) >= 6
+                    
+                    for i, rec in enumerate(result):
+                        # Unpack recommendation data based on format
+                        if has_formula_components:
+                            title, imdb_id, combined_score, similarity, norm_weighted_score, original_rating = rec
+                            similarity_weight = recommender.similarity_weight if hasattr(recommender, 'similarity_weight') else 0.7
+                            weighted_score_weight = 1 - similarity_weight
+                            
+                            # Create formula display: 0.307 = 0.7 * 0.4 + 0.3 * 0.1
+                            formula = (
+                                f"[bold cyan]{combined_score:.3f}[/bold cyan] = "
+                                f"[green]{similarity_weight:.1f}[/green] * [blue]{similarity:.3f}[/blue] + "
+                                f"[green]{weighted_score_weight:.1f}[/green] * [yellow]{norm_weighted_score:.3f}[/yellow]"
+                            )
+                            
+                        elif has_original_rating:
+                            title, imdb_id, score, original_rating = rec
+                            score_display = f"[bold cyan]{score:.3f}[/bold cyan]"
+                            rating_display = f"[yellow]{original_rating:.1f}[/yellow]"
+                        elif has_score:
+                            title, imdb_id, score = rec
+                            score_display = f"[bold cyan]{score:.3f}[/bold cyan]"
+                        else:
+                            title, imdb_id = rec
+                            
                         link = f"https://www.imdb.com/title/{imdb_id}/" if imdb_id else "[dim]N/A[/dim]"
-                        table.add_row(str(i + 1), title, link)
+                        
+                        if has_formula_components:
+                            table.add_row(str(i + 1), title, link, formula)
+                        elif has_original_rating:
+                            table.add_row(str(i + 1), title, link, score_display, rating_display)
+                        elif has_score:
+                            table.add_row(str(i + 1), title, link, score_display)
+                        else:
+                            table.add_row(str(i + 1), title, link)
 
                     console.print(table)
+                    
+                    # If it's a content-based recommender with a get_details method, display configuration
+                    if is_content_based and hasattr(recommender, 'get_details'):
+                        try:
+                            details = recommender.get_details()
+                            if 'similarity_weight' in details:
+                                weights_table = Table(title="Hybrid Recommender Configuration", show_header=True, header_style="bold cyan")
+                                weights_table.add_column("Parameter", width=30)
+                                weights_table.add_column("Value", width=15)
+                                weights_table.add_row("Plot Similarity Weight", f"{details['similarity_weight']:.2f}")
+                                weights_table.add_row("Weighted Rating Weight", f"{details['weighted_rating_weight']:.2f}")
+                                weights_table.add_row("Mean Rating (C)", f"{details['mean_vote_threshold']:.2f}")
+                                weights_table.add_row("Min. Vote Count (m)", f"{int(details['minimum_vote_threshold'])}")
+                                console.print(weights_table)
+                        except Exception as e:
+                            console.print(f"[yellow]Note: Could not display recommender details: {e}[/yellow]")
                     
                     # Display detailed recommendations with plots if enabled
                     if show_plots and is_content_based:
                         console.print("\n[bold magenta]Recommended Movies Details:[/bold magenta]")
-                        for i, (title, imdb_id) in enumerate(result):
+                        for i, rec in enumerate(result):
+                            # Unpack recommendation data based on format
+                            if has_formula_components:
+                                title, imdb_id, combined_score, similarity, norm_weighted_score, original_rating = rec
+                                similarity_weight = recommender.similarity_weight if hasattr(recommender, 'similarity_weight') else 0.7
+                                weighted_score_weight = 1 - similarity_weight
+                                
+                                # Create formula display: 0.307 = 0.7 * 0.4 + 0.3 * 0.1
+                                formula = (
+                                    f"[bold cyan]{combined_score:.3f}[/bold cyan] = "
+                                    f"[green]{similarity_weight:.1f}[/green] * [blue]{similarity:.3f}[/blue] + "
+                                    f"[green]{weighted_score_weight:.1f}[/green] * [yellow]{norm_weighted_score:.3f}[/yellow]"
+                                )
+                                
+                            elif has_original_rating:
+                                title, imdb_id, score, original_rating = rec
+                                score_display = f"[bold cyan]{score:.3f}[/bold cyan]"
+                                rating_display = f"[yellow]{original_rating:.1f}[/yellow]"
+                            elif has_score:
+                                title, imdb_id, score = rec
+                                score_display = f"[bold cyan]{score:.3f}[/bold cyan]"
+                                original_rating = None
+                            else:
+                                title, imdb_id = rec
+                                score = None
+                                original_rating = None
+                                
                             try:
                                 # Find the movie data in the metadata
                                 movie_idx = recommender.indices[title]
                                 movie_data = recommender.metadata.iloc[movie_idx]
                                 movie_plot = movie_data['overview']
                                 
+                                # Create panel content with score if available
+                                panel_content = f"[bold]{title}[/bold]"
+                                if has_formula_components:
+                                    formula_display = (
+                                        f"\n[bold cyan]Score: {combined_score:.3f}[/bold cyan]\n"
+                                        f"[dim]Formula: {combined_score:.3f} = "
+                                        f"{similarity_weight:.1f} * {similarity:.3f} (similarity) + "
+                                        f"{weighted_score_weight:.1f} * {norm_weighted_score:.3f} (weighted score)[/dim]"
+                                    )
+                                    panel_content += formula_display
+                                elif has_original_rating:
+                                    panel_content += f" [bold cyan](Score: {score:.3f})[/bold cyan] [yellow](Original Rating: {original_rating:.1f})[/yellow]"
+                                elif score is not None:
+                                    panel_content += f" [bold cyan](Score: {score:.3f})[/bold cyan]"
+                                    
+                                panel_content += f"\n\n[italic]{movie_plot}[/italic]\n\n" \
+                                                f"[dim]IMDb: https://www.imdb.com/title/{imdb_id}/[/dim]"
+                                
                                 # Create a panel for each recommended movie
                                 rec_panel = Panel(
-                                    f"[bold]{title}[/bold]\n\n[italic]{movie_plot}[/italic]\n\n"
-                                    f"[dim]IMDb: https://www.imdb.com/title/{imdb_id}/[/dim]",
+                                    panel_content,
                                     title=f"[bold green]#{i+1} Recommendation[/bold green]",
                                     border_style="green",
                                     width=100
@@ -375,10 +526,38 @@ def run_ui(recommender):
                     table.add_column("Rank", style="dim", width=6)
                     table.add_column("Recommended Movie Title")
                     table.add_column("IMDb Link")
+                    
+                    # Add score column for Hybrid Plot Recommender
+                    if is_content_based and len(result[0]) > 2:
+                        table.add_column("Score", width=10)
+                        # Add original rating column if available
+                        if len(result[0]) > 3:
+                            table.add_column("Original Rating", width=14)
 
-                    for i, (title, imdb_id) in enumerate(result):
+                    # Check if the recommendation tuple has 3 elements (title, imdb_id, score)
+                    has_score = is_content_based and len(result[0]) > 2
+                    has_original_rating = is_content_based and len(result[0]) > 3
+                    
+                    for i, rec in enumerate(result):
+                        # Unpack recommendation data based on format
+                        if has_original_rating:
+                            title, imdb_id, score, original_rating = rec
+                            score_display = f"[bold cyan]{score:.3f}[/bold cyan]"
+                            rating_display = f"[yellow]{original_rating:.1f}[/yellow]"
+                        elif has_score:
+                            title, imdb_id, score = rec
+                            score_display = f"[bold cyan]{score:.3f}[/bold cyan]"
+                        else:
+                            title, imdb_id = rec
+                            
                         link = f"https://www.imdb.com/title/{imdb_id}/" if imdb_id else "[dim]N/A[/dim]"
-                        table.add_row(str(i + 1), title, link)
+                        
+                        if has_original_rating:
+                            table.add_row(str(i + 1), title, link, score_display, rating_display)
+                        elif has_score:
+                            table.add_row(str(i + 1), title, link, score_display)
+                        else:
+                            table.add_row(str(i + 1), title, link)
 
                     console.print(table)
 
