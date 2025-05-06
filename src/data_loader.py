@@ -16,7 +16,7 @@ def load_metadata(data_dir: str = 'dataset', use_name_removed: bool = False) -> 
     """
     metadata_filename = 'movies_metadata_name_removed.csv' if use_name_removed else 'movies_metadata.csv'
     metadata_path = os.path.join(data_dir, metadata_filename)
-    links_path = os.path.join(data_dir, 'links_small.csv') # Or links.csv if using full dataset
+    links_path = os.path.join(data_dir, 'links.csv') # Or links.csv if using full dataset
 
     try:
         print(f"Attempting to load metadata from: {os.path.abspath(metadata_path)}")

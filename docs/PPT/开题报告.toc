@@ -1,0 +1,3 @@
+\beamer@sectionintoc {1}{加权评分方法}{3}{0}{1}
+\beamer@sectionintoc {2}{相似性推荐}{8}{0}{2}
+\beamer@sectionintoc {3}{关联规则推荐}{12}{0}{3}

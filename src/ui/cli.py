@@ -252,7 +252,7 @@ def run_ui(recommender):
                 if hasattr(recommender, 'metadata'):
                     metadata_df = recommender.metadata
                     # Try to load ratings data
-                    ratings_df = load_ratings()
+                    ratings_df = load_ratings(use_small=False)
                     analyze_and_display(metadata_df, ratings_df)
                 else:
                     console.print("[bold red]Cannot access dataset. Try running 'python src/main.py stats' instead.[/bold red]")
