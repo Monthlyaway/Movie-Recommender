@@ -51,67 +51,64 @@ def select_movie_from_matches(matches: List[str]) -> Optional[str]:
 
 def display_association_rules(recommender):
     """
-    Displays random association rules from the recommender.
+    Displays random frequent itemsets from the recommender.
     
     Args:
         recommender: An initialized and fitted AssociationRecommender
     """
     if not hasattr(recommender, 'get_random_rules'):
-        console.print("[bold red]This recommender doesn't support rule display.[/bold red]")
+        console.print("[bold red]This recommender doesn't support itemset display.[/bold red]")
         return
     
     try:
-        # Ask user how many rules to display
+        # Ask user how many itemsets to display
         try:
-            num_rules = int(Prompt.ask("\nHow many random rules to display?", default="5"))
-            if num_rules <= 0:
+            num_itemsets = int(Prompt.ask("\nHow many random itemsets to display?", default="5"))
+            if num_itemsets <= 0:
                 console.print("[bold red]Please enter a positive number.[/bold red]")
                 return
         except ValueError:
             console.print("[bold red]Invalid number.[/bold red]")
             return
             
-        # Get random rules
-        rules = recommender.get_random_rules(num_rules)
-        if not rules:
-            console.print("[bold yellow]No rules available to display.[/bold yellow]")
+        # Get random itemsets
+        itemsets = recommender.get_random_rules(num_itemsets)
+        if not itemsets:
+            console.print("[bold yellow]No itemsets available to display.[/bold yellow]")
             return
             
-        # Display rules in a table
-        console.print(f"\n[bold green]Displaying {len(rules)} Random Association Rules:[/bold green]")
+        # Display itemsets in a table
+        console.print(f"\n[bold green]Displaying {len(itemsets)} Random Frequent Itemsets:[/bold green]")
         
-        for i, rule in enumerate(rules):
-            # Create a nicely formatted panel for each rule
-            antecedents_str = ", ".join(rule['antecedents'])
-            consequents_str = ", ".join(rule['consequents'])
+        for i, itemset in enumerate(itemsets):
+            # Create a nicely formatted panel for each itemset
+            movies_str = ", ".join(itemset['movies'])
             
             panel_content = (
-                f"[bold cyan]Rule #{i+1}:[/bold cyan]\n\n"
-                f"[bold]IF[/bold] user likes: [yellow]{antecedents_str}[/yellow]\n"
-                f"[bold]THEN[/bold] they'll likely also like: [green]{consequents_str}[/green]\n\n"
-                f"[dim]Support: {rule['support']:.4f} | "
-                f"Confidence: {rule['confidence']:.4f} | "
-                f"Lift: {rule['lift']:.4f}[/dim]"
+                f"[bold cyan]Itemset #{i+1}:[/bold cyan]\n\n"
+                f"[bold]Movies that frequently appear together:[/bold]\n"
+                f"[yellow]{movies_str}[/yellow]\n\n"
+                f"[dim]Support: {itemset['support']:.4f}[/dim]"
             )
             
             panel = Panel(
                 panel_content,
-                title=f"[bold]Association Rule {i+1}/{len(rules)}[/bold]",
+                title=f"[bold]Frequent Itemset {i+1}/{len(itemsets)}[/bold]",
                 border_style="blue"
             )
             
             console.print(panel)
             
-            # Ask to see more rules if not the last one
-            if i < len(rules) - 1:
-                see_more = Prompt.ask("See next rule?", choices=["y", "n"], default="y")
+            # Ask to see more itemsets if not the last one
+            if i < len(itemsets) - 1:
+                see_more = Prompt.ask("See next itemset?", choices=["y", "n"], default="y")
                 if see_more.lower() == "n":
                     break
                     
-        console.print("\n[bold green]End of rules display.[/bold green]")
+        console.print("\n[bold green]End of itemsets display.[/bold green]")
         
     except Exception as e:
-        console.print(f"[bold red]Error displaying rules: {e}[/bold red]")
+        console.print(f"[bold red]Error displaying itemsets: {e}[/bold red]")
 
 
 def run_ui(recommender):
@@ -296,7 +293,7 @@ def run_ui(recommender):
                 if hasattr(recommender, 'metadata'):
                     metadata_df = recommender.metadata
                     # Try to load ratings data
-                    ratings_df = load_ratings(use_small=False)
+                    ratings_df = load_ratings()
                     analyze_and_display(metadata_df, ratings_df)
                 else:
                     console.print("[bold red]Cannot access dataset. Try running 'python src/main.py stats' instead.[/bold red]")

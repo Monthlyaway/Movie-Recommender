@@ -78,18 +78,17 @@ def load_metadata(data_dir: str = 'dataset', use_name_removed: bool = False) -> 
         # traceback.print_exc() # Uncomment for detailed error traceback
         return pd.DataFrame()
 
-def load_ratings(data_dir: str = 'dataset', use_small: bool = True) -> pd.DataFrame:
+def load_ratings(data_dir: str = 'dataset') -> pd.DataFrame:
     """
-    Loads ratings data from either ratings_small.csv or ratings.csv.
+    Loads ratings data from ratings.csv.
     
     Args:
         data_dir: The directory containing the dataset files.
-        use_small: Whether to use the smaller ratings dataset (default: True)
         
     Returns:
         A pandas DataFrame containing user ratings.
     """
-    file_name = 'ratings_small.csv' if use_small else 'ratings.csv'
+    file_name = 'ratings_small.csv'
     ratings_path = os.path.join(data_dir, file_name)
     
     try:
