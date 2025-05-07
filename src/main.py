@@ -14,6 +14,7 @@ try:
     from src.recommenders.plot_recommender import PlotRecommender
     from src.recommenders.simple_recommender import SimpleRecommender
     from src.recommenders.association_recommender import AssociationRecommender
+    from src.recommenders.keyword_recommender import KeywordRecommender # Added
     from src.ui.cli import run_ui
     from src.utils.dataset_stats import analyze_and_display
 except ImportError as e:
@@ -81,6 +82,16 @@ def setup_parser():
     stats_parser = subparsers.add_parser(
         'stats', help='Show dataset statistics')
 
+    # Keyword Recommender
+    keyword_parser = subparsers.add_parser(
+        'keyword', help='Keyword-based recommender using keyword relevance and IMDB scores')
+    keyword_parser.add_argument('--alpha', type=float, default=0.7,
+                                help='Weight for keyword relevance score (0-1), default: 0.7')
+    keyword_parser.add_argument('--beta', type=float, default=0.3,
+                                help='Weight for IMDB weighted score (0-1), default: 0.3')
+    keyword_parser.add_argument('--kw-vote-percentile', type=float, default=0.85,
+                                help='Vote count percentile for IMDB score calculation within keyword recommender (default: 0.85)')
+
     return parser
 
 
@@ -146,8 +157,19 @@ if __name__ == "__main__":
             print("\nFatal Error: AssociationRecommender fitting failed. Exiting.")
             print("Try adjusting the parameters as suggested above.")
             sys.exit(1)
-    else:  # Default to plot recommender
-        if hasattr(args, 'hybrid') and args.hybrid:
+    elif args.recommender == 'keyword':
+        recommender = KeywordRecommender(
+            alpha=args.alpha,
+            beta=args.beta,
+            vote_count_percentile=args.kw_vote_percentile
+        )
+        # KeywordRecommender needs metadata_df and path to keywords.csv
+        fit_successful = recommender.fit(metadata_df, keywords_data_path=os.path.join(DATA_DIRECTORY, 'keywords.csv'))
+        if not fit_successful:
+            print("\nFatal Error: KeywordRecommender fitting failed. Exiting.")
+            sys.exit(1)
+    else:  # Default to plot recommender (or if 'plot' is explicitly chosen)
+        if hasattr(args, 'hybrid') and args.hybrid: # Check if args has 'hybrid'
             print(
                 f"Initializing Hybrid Plot Recommender (similarity weight: {args.similarity_weight}, vote percentile: {args.percentile})")
             recommender = PlotRecommender(
@@ -157,7 +179,7 @@ if __name__ == "__main__":
         else:
             print("Initializing standard Plot Recommender")
             recommender = PlotRecommender()
-
+        
         recommender.fit(metadata_df)
 
     print("Recommender fitting successful.")

@@ -1,3 +1,4 @@
+import pandas as pd # Added
 from rich.console import Console
 from rich.prompt import Prompt
 from rich.table import Table
@@ -8,6 +9,22 @@ from typing import List, Optional, Union, Tuple # Import necessary types
 
 # Assuming PlotRecommender is the only one for now
 # from ..recommenders.plot_recommender import PlotRecommender # Relative import might fail if run directly
+try:
+    from ..recommenders.keyword_recommender import KeywordRecommender
+    from ..recommenders.plot_recommender import PlotRecommender # Ensure this is also attempted if used
+    from ..recommenders.simple_recommender import SimpleRecommender
+    from ..recommenders.association_recommender import AssociationRecommender
+except ImportError: # Fallback if run directly or src not in path
+    import sys
+    import os
+    project_root_ui = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if project_root_ui not in sys.path:
+        sys.path.insert(0, project_root_ui)
+    from recommenders.keyword_recommender import KeywordRecommender
+    from recommenders.plot_recommender import PlotRecommender
+    from recommenders.simple_recommender import SimpleRecommender
+    from recommenders.association_recommender import AssociationRecommender
+
 
 console = Console()
 
@@ -136,7 +153,8 @@ def run_ui(recommender):
     recommender_name = recommender.__class__.__name__
     is_simple_recommender = recommender_name == 'SimpleRecommender'
     is_association_recommender = recommender_name == 'AssociationRecommender'
-    is_content_based = not (is_simple_recommender or is_association_recommender)
+    is_keyword_recommender = recommender_name == 'KeywordRecommender' # Added
+    is_content_based = not (is_simple_recommender or is_association_recommender or is_keyword_recommender) # Modified
     
     if is_simple_recommender:
         console.print(f"[bold]Using Simple Movie Recommender[/bold] (IMDB Weighted Rating Formula)")
@@ -154,7 +172,13 @@ def run_ui(recommender):
             console.print(f"Min lift: {details.get('min_lift', 'N/A')}")
             console.print(f"Rating threshold: {details.get('rating_threshold', 'N/A')}")
             console.print(f"Number of rules: {details.get('rules_count', 'N/A')}")
-    else:
+    elif is_keyword_recommender:
+        console.print(f"[bold]Using Keyword-Based Movie Recommender[/bold]")
+        if hasattr(recommender, 'alpha') and hasattr(recommender, 'beta'):
+            console.print(f"Keyword Score Weight (alpha): {recommender.alpha}")
+            console.print(f"IMDB Score Weight (beta): {recommender.beta}")
+            console.print(f"Vote Percentile for IMDB (m): {recommender.vote_count_percentile}")
+    else: # Content-based (PlotRecommender)
         # Check if it's a hybrid plot recommender
         is_hybrid = hasattr(recommender, 'get_details') and 'hybrid' in recommender.get_details().get('type', '')
         
@@ -178,22 +202,33 @@ def run_ui(recommender):
         if is_simple_recommender:
             console.print("1. View top rated movies")
             choices = ["1", "3", "4"] if has_stats_module else ["1", "3"]
-        elif is_content_based or is_association_recommender:
+        elif is_keyword_recommender:
+            console.print("1. Search for movies by keywords")
+            choices = ["1", "2", "3"] if has_stats_module else ["1", "2"]
+            if has_stats_module:
+                 console.print("2. View dataset statistics")
+                 console.print("3. Quit")
+            else:
+                 console.print("2. Quit")
+        elif is_content_based or is_association_recommender: # Plot or Association
             if is_content_based:  # Only Plot recommender has plot details
                 console.print(f"1. Show plots: {'[green]ON[/green]' if show_plots else '[red]OFF[/red]'}")
-            else:
+            else: # Association
                 console.print("1. Display random association rules")
-            console.print("2. Search for a movie")
+            console.print("2. Search for a movie (by title)")
             choices = ["1", "2", "3", "4"] if has_stats_module else ["1", "2", "3"]
         
-        # Add dataset statistics option if available
-        if has_stats_module:
-            console.print("3. View dataset statistics")
-            console.print("4. Quit")
-        else:
-            console.print("3. Quit")
+        # Add dataset statistics option if available (general handling, specific numbering above)
+        if not is_keyword_recommender: # Keyword recommender handles its own numbering for stats/quit
+            if has_stats_module:
+                if not (is_simple_recommender): # Simple recommender already listed its options
+                    console.print("3. View dataset statistics")
+                    console.print("4. Quit")
+            else:
+                if not (is_simple_recommender):
+                     console.print("3. Quit")
         
-        default_choice = "1" if is_simple_recommender else "2"
+        default_choice = "1"
         choice = Prompt.ask("\n[bold]Select an option[/bold]", choices=choices, default=default_choice)
         
         if choice == "1":
@@ -284,8 +319,124 @@ def run_ui(recommender):
             elif is_association_recommender:
                 # Association recommender: display random rules
                 display_association_rules(recommender)
+            elif is_keyword_recommender:
+                # Keyword recommender: search by keywords
+                keywords_input = Prompt.ask("\n[bold green]Enter keywords (comma-separated)[/bold green]")
+                if not keywords_input.strip():
+                    console.print("[bold red]No keywords entered.[/bold red]")
+                    continue
+                
+                console.print(f"\nSearching for movies with keywords: '[italic]{keywords_input}[/italic]'...")
+                try:
+                    top_n_str = Prompt.ask("How many movies to recommend?", default="10")
+                    top_n = int(top_n_str)
+                    if top_n <= 0:
+                        console.print("[bold red]Please enter a positive number.[/bold red]")
+                        continue
+
+                    recommendations = recommender.recommend(keywords_input, top_n=top_n)
+                    
+                    if not recommendations.empty:
+                        console.print(f"\n[bold green]Top {len(recommendations)} Recommendations for Keywords: '{keywords_input}'[/bold green]")
+                        for i, row_tuple in enumerate(recommendations.itertuples(index=False)):
+                            # Convert NamedTuple to dict for easier access with .get()
+                            row = row_tuple._asdict()
+
+                            title = str(row.get('title', 'N/A'))
+                            movie_id = row.get('id', None)
+                            overview = str(row.get('overview', 'Not available.'))
+                            # The 'keyword_set' in recommendations is the movie's full keyword set
+                            movie_keywords_set = row.get('keyword_set', set())
+                            movie_keywords_str = ", ".join(sorted(list(movie_keywords_set))) if movie_keywords_set else "N/A"
+
+                            final_score = row.get('final_score', 0)
+                            norm_krs = row.get('normalized_krs', 0)
+                            norm_imdb = row.get('normalized_imdb_score', 0)
+
+                            imdb_link = "[dim]N/A[/dim]"
+                            if movie_id and hasattr(recommender, 'metadata_df') and not recommender.metadata_df.empty:
+                                if 'imdb_id_full' in recommender.metadata_df.columns:
+                                    # Check if movie_id is in the index of metadata_df
+                                    if movie_id in recommender.metadata_df.index:
+                                        full_imdb_id = recommender.metadata_df.loc[movie_id, 'imdb_id_full']
+                                        if pd.notna(full_imdb_id):
+                                            imdb_link = f"https://www.imdb.com/title/{full_imdb_id}/"
+                                    else: # Check if 'id' column exists and search there (if not index)
+                                        id_column_search = recommender.metadata_df[recommender.metadata_df['id'] == movie_id]
+                                        if not id_column_search.empty:
+                                            full_imdb_id = id_column_search['imdb_id_full'].iloc[0]
+                                            if pd.notna(full_imdb_id):
+                                                imdb_link = f"https://www.imdb.com/title/{full_imdb_id}/"
+
+
+                            score_calc_str = (
+                                f"[bold cyan]{final_score:.3f}[/bold cyan] = "
+                                f"[green]{recommender.alpha:.2f}[/green] (alpha) * [blue]{norm_krs:.3f}[/blue] (KRS) + "
+                                f"[green]{recommender.beta:.2f}[/green] (beta) * [yellow]{norm_imdb:.3f}[/yellow] (IMDb)"
+                            )
+
+                            panel_content = (
+                                f"[bold magenta]{title}[/bold magenta]\n\n"
+                                f"[bold]IMDb Link:[/bold] {imdb_link}\n\n"
+                                f"[bold]Overview:[/bold]\n[italic]{overview}[/italic]\n\n"
+                                f"[bold]Movie Keywords:[/bold]\n[dim]{movie_keywords_str}[/dim]\n\n"
+                                f"[bold]Score Calculation:[/bold]\n{score_calc_str}"
+                            )
+                            
+                            console.print(Panel(
+                                panel_content,
+                                title=f"[bold]Recommendation #{i+1}/{len(recommendations)}[/bold]",
+                                border_style="blue",
+                                expand=False
+                            ))
+
+                            if i < len(recommendations) - 1:
+                                see_more = Prompt.ask("See next movie?", choices=["y", "n"], default="y")
+                                if see_more.lower() == "n":
+                                    break
+                        console.print("\n[bold green]End of keyword recommendations.[/bold green]")
+                    else:
+                        console.print(f"[bold yellow]No movies found matching the keywords: {keywords_input}[/bold yellow]")
+                except ValueError:
+                    console.print("[bold red]Invalid number entered for 'how many movies'.[/bold red]")
+                except Exception as e:
+                    console.print(f"[bold red]An error occurred during keyword recommendation: {e}[/bold red]")
+                    import traceback
+                    traceback.print_exc()
+            continue # Important to continue to next iteration after handling choice "1"
+        
+        # Adjusting quit/stats logic based on recommender type
+        # For Keyword Recommender:
+        # Choice "2" is stats (if available), then "3" is quit
+        # Choice "2" is quit (if stats not available)
+        if is_keyword_recommender:
+            if choice == "2" and has_stats_module: # Stats for KeywordRecommender
+                # Show dataset statistics
+                console.print("\n[bold]Loading dataset statistics...[/bold]")
+                try:
+                    if hasattr(recommender, 'metadata_df') and not recommender.metadata_df.empty:
+                        metadata_df_for_stats = recommender.metadata_df.copy()
+                        # If 'id' is index, reset it for analyze_and_display if it expects 'id' as column
+                        if metadata_df_for_stats.index.name == 'id':
+                            metadata_df_for_stats.reset_index(inplace=True)
+                        
+                        ratings_df = load_ratings(data_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'dataset'))
+                        analyze_and_display(metadata_df_for_stats, ratings_df)
+                    else:
+                        console.print("[bold red]Cannot access dataset for statistics.[/bold red]")
+                except Exception as e:
+                    console.print(f"[bold red]Error displaying statistics: {e}[/bold red]")
+                continue
+            elif (choice == "2" and not has_stats_module) or (choice == "3" and has_stats_module): # Quit for KeywordRecommender
+                console.print("[bold yellow]Goodbye![/bold yellow]")
+                break
+            # If an invalid choice for keyword recommender (e.g. "3" when no stats)
+            console.print("[bold yellow]Invalid option.[/bold yellow]")
             continue
-        elif choice == "3" and has_stats_module:
+
+
+        # For other recommenders (Simple, Plot, Association)
+        if choice == "3" and has_stats_module:
             # Show dataset statistics
             console.print("\n[bold]Loading dataset statistics...[/bold]")
             try:
@@ -304,13 +455,14 @@ def run_ui(recommender):
             console.print("[bold yellow]Goodbye![/bold yellow]")
             break
         
-        # Option 2: Only relevant for plot and association recommenders
-        if is_simple_recommender:
-            console.print("[bold yellow]Invalid option for the Simple Recommender.[/bold yellow]")
+        # Option 2 (for Plot/Association) or if KeywordRecommender logic fell through (should not happen with 'continue')
+        if is_simple_recommender or is_keyword_recommender: # These have their main action on "1"
+            # This path should ideally not be hit if choice "1" for these recommenders 'continue's
+            console.print("[bold yellow]Invalid option or action already performed.[/bold yellow]")
             continue
             
-        # Search for a movie with the plot or association recommender
-        movie_title_input = Prompt.ask("\n[bold green]Enter a movie title to get recommendations[/bold green]")
+        # Search for a movie by title (for Plot and Association Recommenders)
+        movie_title_input = Prompt.ask("\n[bold green]Enter a movie title to get recommendations (for Plot/Association)[/bold green]")
 
         if not movie_title_input:
             console.print("[bold red]Please enter a movie title.[/bold red]")
