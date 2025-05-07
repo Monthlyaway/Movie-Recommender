@@ -69,14 +69,14 @@ def setup_parser():
     # Association Recommender (collaborative filtering)
     assoc_parser = subparsers.add_parser(
         'association', help='Association rule mining recommender')
-    assoc_parser.add_argument('--min-support', type=float, default=0.06,
-                              help='Minimum support threshold for association rules (default: 0.06)')
+    assoc_parser.add_argument('--min-support', type=float, default=0.04,
+                              help='Minimum support threshold for association rules (default: 0.04)')
     assoc_parser.add_argument('--min-confidence', type=float, default=0.3,
                               help='Minimum confidence for association rules (default: 0.3)')
     assoc_parser.add_argument('--min-lift', type=float, default=1.2,
                               help='Minimum lift for association rules (default: 1.2)')
-    assoc_parser.add_argument('--rating-threshold', type=float, default=6,
-                              help='Minimum rating to consider a movie as liked (default: 6)')
+    assoc_parser.add_argument('--rating-threshold', type=float, default=4,
+                              help='Minimum rating to consider a movie as liked (default: 4)')
 
     # Dataset Statistics (utility)
     stats_parser = subparsers.add_parser(

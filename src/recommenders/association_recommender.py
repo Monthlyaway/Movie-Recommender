@@ -23,15 +23,15 @@ class AssociationRecommender:
     "users who liked Movie A also liked Movie B."
     """
 
-    def __init__(self, min_support=0.06, min_confidence=0.3, min_lift=1.2, rating_threshold=6):
+    def __init__(self, min_support=0.04, min_confidence=0.3, min_lift=1.2, rating_threshold=4):
         """
         Initialize the recommender.
 
         Args:
-            min_support: Minimum support threshold for FP-Growth (default: 0.06)
+            min_support: Minimum support threshold for FP-Growth (default: 0.04)
             min_confidence: Minimum confidence for rules (default: 0.3 or 30%)
             min_lift: Minimum lift for rules (default: 1.2)
-            rating_threshold: Minimum rating to consider a movie as "liked" (default: 6)
+            rating_threshold: Minimum rating to consider a movie as "liked" (default: 4)
         """
         self.min_support = min_support
         self.min_confidence = min_confidence
@@ -323,10 +323,10 @@ if __name__ == "__main__":
     if not metadata_df.empty and not ratings_df.empty:
         # Create and fit the recommender
         recommender = AssociationRecommender(
-            min_support=0.06,
+            min_support=0.04,
             min_confidence=0.3,
             min_lift=1.2,
-            rating_threshold=6
+            rating_threshold=4
         )
         recommender.fit(metadata_df, ratings_df)
 
