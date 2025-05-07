@@ -29,7 +29,7 @@
 pip install -r requirements.txt
 
 # 运行推荐系统
-python src/main.py [options]
+python src/main.py --help
 ```
 
 可用的推荐器模式：
@@ -46,6 +46,18 @@ python src/main.py keyword
 # 关联规则推荐器
 python src/main.py association
 ```
+
+有哪些选项可以选？
+
+```bash
+python src/main.py --help
+python src/main.py simple --help
+python src/main.py plot --help
+python src/main.py keyword --help
+python src/main.py association --help
+```
+
+
 
 ## 项目结构
 
