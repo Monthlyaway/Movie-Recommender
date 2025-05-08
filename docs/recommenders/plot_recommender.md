@@ -287,7 +287,7 @@ python src/main.py plot
 
 ![Wreck-It Ralph recommendation before name removal](../images/chen_ralph1.png)
 
-这不是我们期望的结果。为了解决这个问题，我们可以在预处理阶段去除电影情节描述中的人名。这可以通过命名实体识别 (NER) 技术实现，具体代码参考 [`src/preprocess_metadata.py`](src/preprocess_metadata.py)。核心思路是使用NLP库spaCy识别人名实体 (PERSON) 并将其从文本中移除。
+这不是我们期望的结果。为了解决这个问题，我们可以在预处理阶段去除电影情节描述中的人名。这可以通过命名实体识别 (NER) 技术实现，具体代码参考 [`src/preprocess_metadata.py`](../../src/preprocess_metadata.py)。核心思路是使用NLP库spaCy识别人名实体 (PERSON) 并将其从文本中移除。
 
 以下代码片段展示了移除人名的核心逻辑：
 ```python

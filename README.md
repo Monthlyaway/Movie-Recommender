@@ -9,7 +9,7 @@
 1. [**加权评分推荐器**](docs/recommenders/simple_recommender.md) - 基于IMDB加权评分公式，根据用户评分和投票数量推荐高质量电影
 2. [**情节相似度推荐器**](docs/recommenders/plot_recommender.md) - 通过分析电影情节内容，推荐具有相似故事情节的电影
 3. [**关键词推荐器**](docs/recommenders/keyword_recommender.md) - 利用电影的关键词标签，为用户推荐具有相似主题和元素的电影
-4. [**关联规则推荐器**](docs/recommenders/association_recommender.md) - 基于用户的观影历史，利用频繁模式挖掘推荐经常一起被喜欢的电影
+4. [**频繁项集推荐器**](docs/recommenders/association_recommender.md) - 基于用户的观影历史，利用频繁模式挖掘推荐经常一起被喜欢的电影
 
 ## 数据集
 

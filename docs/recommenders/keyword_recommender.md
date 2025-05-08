@@ -60,139 +60,59 @@
 
 ```python
     def _calculate_idf(self, all_movie_keyword_sets: pd.Series):
-        """
-        Calculates Inverse Document Frequency (IDF) for all unique keywords.
-        IDF = log((Total Number of Documents + 1) / (Document Frequency of Keyword + 1)) + 1 (smoothing)
-        """
-        if all_movie_keyword_sets.empty:
-            self.idf_scores = {}
-            return
-
+        # ... (初始化和统计 keyword_doc_frequency, 即各关键词在多少电影中出现)
         total_movies = len(all_movie_keyword_sets)
-        keyword_doc_frequency = Counter() # Counts document frequency for each keyword
-
-        for keyword_set in all_movie_keyword_sets:
-            if isinstance(keyword_set, set):
-                keyword_doc_frequency.update(list(keyword_set))
-
-        self.idf_scores = {}
+        self.idf_scores = {} # 用于存储计算得到的IDF值
         for keyword, doc_freq in keyword_doc_frequency.items():
+            # IDF核心公式: log((总电影数 + 1) / (含该关键词的电影数 + 1)) + 1
             self.idf_scores[keyword] = math.log((total_movies + 1) / (doc_freq + 1)) + 1
 ```
 
-*   `keyword_doc_frequency`: 使用 `collections.Counter` 来统计每个关键词在多少部电影中出现过（即文档频率 `df`）。
-*   对于每个关键词，IDF值根据公式 `log((total_movies + 1) / (doc_freq + 1)) + 1` 计算。平滑处理（`+1`）用于避免当 `doc_freq` 为0或极大时可能出现的问题。
-*   计算得到的IDF值存储在 `self.idf_scores` 字典中。
+此方法为每个关键词计算逆文档频率 (IDF)。它首先统计每个关键词在多少部电影文档中出现过（文档频率 `df`），然后基于 `df` 和总电影数，使用公式 `log((总电影数 + 1) / (df + 1)) + 1` 计算出每个关键词的IDF值。IDF值较高的关键词通常被认为更具区分度，对于识别特定主题的电影更为重要。
 
 ### 数据拟合/准备 (`fit`)
 `fit` 方法是推荐器进行数据预处理和计算必要评分（如IDF、IMDB加权分）的入口。
 
 ```python
     def fit(self, metadata_df: pd.DataFrame, keywords_data_path: str = 'dataset/keywords.csv') -> bool:
-        # ... (Error checking for metadata_df columns) ...
-        self.metadata_df = metadata_df.copy()
-        if 'id' in self.metadata_df.columns:
-             self.metadata_df.set_index('id', inplace=True, drop=False)
-
-        # 1. Load and Parse Keywords
-        try:
-            keywords_df = pd.read_csv(keywords_data_path)
-            keywords_df['id'] = keywords_df['id'].astype(self.metadata_df.index.dtype)
-            keywords_df.set_index('id', inplace=True)
-        except Exception as e:
-            # ... (Error handling) ...
-            return False
-
-        self.movie_keyword_sets = self.metadata_df.index.to_series().apply(
-            lambda movie_id: self._parse_keyword_string(
-                keywords_df.loc[movie_id, 'keywords']
-            ) if movie_id in keywords_df.index else set()
-        )
-        self.metadata_df['keyword_set'] = self.movie_keyword_sets
-
-        # 2. Calculate IDF Scores
+        # 1. 加载和解析关键词 (概念性展示主要步骤)
+        #    keywords_df = pd.read_csv(keywords_data_path)
+        #    self.movie_keyword_sets = ... apply(self._parse_keyword_string from keywords_df) ...
+        # 2. 计算IDF分数
         self._calculate_idf(self.movie_keyword_sets)
-        # ... (Warning if IDF scores are empty) ...
-
-        # 3. Calculate Normalized IMDB Scores
-        try:
-            imdb_scores_result = calculate_normalized_weighted_scores(
-                self.metadata_df, # Requires 'vote_average', 'vote_count'
-                vote_count_percentile=self.vote_count_percentile
-            )
-            self.normalized_imdb_scores = imdb_scores_result['normalized_scores']
-            self.metadata_df['normalized_imdb_score'] = self.normalized_imdb_scores
-        except Exception as e:
-            # ... (Error handling) ...
-            return False
-
-        self._fitted = True
-        return True
+        # 3. 计算归一化的IMDB分数
+        self.normalized_imdb_scores = calculate_normalized_weighted_scores(self.metadata_df, ...)['normalized_scores']
+        self._fitted = True # 标记推荐器已准备就绪
 ```
-**解析**:
-1.  **加载元数据**: 复制传入的 `metadata_df` 并以电影 `id` 设置索引。
-2.  **加载和解析关键词**
-3.  **计算IDF分数**: 调用 `_calculate_idf` 方法计算所有关键词的IDF值。
-4.  **计算归一化IMDB分数**:
-5.  设置 `self._fitted = True` 标记表示数据准备完成。
+
+`fit` 方法负责初始化推荐器并准备其运行所需的核心数据。它主要执行以下操作：
+1.  处理传入的电影元数据 (`metadata_df`)，并从指定路径加载电影关键词数据。
+2.  为数据集中的每部电影提取并关联其关键词集合 (存储在 `self.movie_keyword_sets`)。
+3.  调用前述的 `_calculate_idf` 方法，计算数据集中所有独立关键词的IDF值。
+4.  调用外部的 `calculate_normalized_weighted_scores` 函数，根据电影的评分和投票数计算IMDB式的加权评分，并进行归一化。
+完成这些步骤后，推荐器被标记为“已拟合” (`_fitted = True`)，表明其已准备好生成推荐。
 
 ### 生成推荐 (`recommend`)
 此方法是推荐器的核心，根据用户输入的关键词生成电影推荐列表。
 
 ```python
     def recommend(self, user_keywords_str: str, top_n: int = 10) -> pd.DataFrame:
-        if not self._fitted:
-            # ... (Error if not fitted) ...
-            return pd.DataFrame()
-
-        user_keywords = {kw.strip().lower() for kw in user_keywords_str.split(',')}
-        # ... (Handle empty user_keywords) ...
-
-        # Calculate Keyword Relevance Score (KRS) for each movie
-        krs_values = []
-        for movie_id, movie_data in self.metadata_df.iterrows():
-            movie_kws = movie_data.get('keyword_set', set())
-            matched_keywords = user_keywords.intersection(movie_kws)
-            if matched_keywords:
-                krs = sum(self.idf_scores.get(kw, 0) for kw in matched_keywords)
-                krs_values.append(krs)
-            else:
-                krs_values.append(0)
-        self.metadata_df['krs'] = krs_values
-
-        # Normalize KRS for movies that had at least one match (KRS > 0)
-        positive_krs = self.metadata_df[self.metadata_df['krs'] > 0]['krs']
-        if not positive_krs.empty:
-            min_krs, max_krs = positive_krs.min(), positive_krs.max()
-            krs_range = max_krs - min_krs
-            if krs_range == 0:
-                 self.metadata_df['normalized_krs'] = positive_krs.apply(lambda x: 1.0 if x > 0 else 0.0)
-            else:
-                self.metadata_df['normalized_krs'] = self.metadata_df['krs'].apply(
-                    lambda x: (x - min_krs) / krs_range if x > 0 else 0.0
-                )
-        else:
-            self.metadata_df['normalized_krs'] = 0.0
-            # ... (Handle no keyword matches) ...
-
-        # Calculate Final Score
+        user_keywords = {kw.strip().lower() for kw in user_keywords_str.split(',')} # 1. 解析用户输入关键词
+        # 2. 为每部电影计算关键词相关性评分(KRS)并归一化 (概念性展示)
+        #    krs = sum(self.idf_scores.get(kw, 0) for kw in (user_keywords & movie_keywords_set))
+        self.metadata_df['normalized_krs'] = self._calculate_and_normalize_krs(user_keywords)
+        # 3. 计算最终推荐分数
         self.metadata_df['final_score'] = (self.alpha * self.metadata_df['normalized_krs'].fillna(0)) + \
                                           (self.beta * self.metadata_df['normalized_imdb_score'].fillna(0))
-
-        # Sort and get top N recommendations
-        recommendations = self.metadata_df.sort_values(by='final_score', ascending=False)
-        # ... (Select and format output columns) ...
-        return final_recs
+        # 4. 排序并返回Top-N结果
+        return self.metadata_df.sort_values(by='final_score', ascending=False).head(top_n)
 ```
 
-1.  **检查拟合状态**: 确保 `fit` 方法已被调用。
-2.  **用户关键词处理**: 将用户输入的逗号分隔的关键词字符串（`user_keywords_str`）转换为小写的关键词集合 `user_keywords`。
-3.  **计算KRS**:
-4.  **归一化KRS**:
-5.  **计算最终分数**:
-6.  **排序与返回**:
-    *   根据 `final_score` 对电影进行降序排序。
-    *   选取指定的 `top_n` 部电影，并选择如标题、最终分数、各项原始分数、关键词集合等列作为最终推荐结果返回。
+此方法是推荐器的核心功能，用于根据用户输入的关键词字符串生成电影推荐列表。其主要流程如下：
+1.  将用户输入的关键词字符串（例如 "action, comedy"）解析为一个标准化的关键词集合。
+2.  计算每部电影的“关键词相关性评分 (KRS)”。这通常涉及到找出该电影的关键词与用户关键词的交集，并累加这些匹配关键词的IDF值。之后，KRS值会进行归一化处理（由 `_calculate_and_normalize_krs` 辅助方法完成）。
+3.  使用预设的权重参数 `alpha` (关键词相关性权重) 和 `beta` (电影流行度权重)，将每部电影的归一化KRS与之前在 `fit` 方法中计算好的归一化IMDB评分进行加权求和，得到最终的推荐分数 (`final_score`)。
+4.  所有电影根据此 `final_score` 进行降序排序，并选取分数最高的 `top_n` 部电影作为推荐结果返回。
 
 ## 实验设置与结果展示 (Experiment Setup & Results)
 
