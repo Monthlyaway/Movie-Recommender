@@ -21,39 +21,40 @@
 1.  **关键词提取**: 从关键词数据中解析出每部电影的关键词集合。此步骤由 `_parse_keyword_string` 方法完成。
 2.  **IDF值计算**: 计算每个独立关键词的逆文档频率 (IDF) 以评估其重要性。公式如下：
 
-    $$
-    IDF(\text{keyword}) = \log\left(\frac{N + 1}{df_{\text{keyword}} + 1}\right) + 1
-    $$
+$$
+IDF(\text{keyword}) = \log\left(\frac{N + 1}{df_{\text{keyword}} + 1}\right) + 1
+$$
 
-    其中：
-    *   $N$ 是电影总数。
-    *   $df_{\text{keyword}}$ 是包含该关键词的电影数量。
-    此逻辑在 `_calculate_idf` 方法中实现。
+其中：
+*   $N$ 是电影总数。
+*   $df_{\text{keyword}}$ 是包含该关键词的电影数量。
+此逻辑在 `_calculate_idf` 方法中实现。
 
 ### 电影加权评分计算 (IMDB-style Weighted Score)
-为了评估电影的整体质量和受欢迎程度，系统采用IMDB式的加权评分，综合考虑平均评分 (`vote_average`) 和投票数 (`vote_count`)，并进行归一化。此功能由 [`../../src/utils/weighted_score.py`](../../src/utils/weighted_score.py) 函数提供，并在 `KeywordRecommender` 的 `fit` 方法中调用。
+为了评估电影的整体质量和受欢迎程度，系统采用IMDB式的加权评分，综合考虑平均评分 (`vote_average`) 和投票数 (`vote_count`)，并进行归一化。此功能由 [`src/utils/weighted_score.py`](../../src/utils/weighted_score.py) 函数提供，并在 `KeywordRecommender` 的 `fit` 方法中调用。
 
 ### 用户查询与关键词相关性评分 (KRS)
 当用户输入查询关键词时：
 1.  **用户关键词解析**: 将输入字符串解析为关键词集合。
 2.  **匹配与KRS计算**: 计算电影的关键词相关性评分 (KRS)：
 
-    $$
-    KRS(\text{movie}) = \sum IDF(\text{matched keyword})
-    $$
+$$
+KRS(\text{movie}) = \sum IDF(\text{matched keyword})
+$$
 
-    即电影所有匹配关键词的IDF值之和。
+即电影所有匹配关键词的IDF值之和。
+
 3.  **KRS归一化**: 将KRS归一化到0-1范围。
 
 ### 最终推荐分数计算与排序
 结合关键词相关性与电影质量计算最终分数：
 *   **最终分数 (Final Score)**:
 
-    $$
-    FinalScore(\text{movie}) = \alpha \times KRS(\text{movie}) + \beta \times IMDB\_Score(\text{movie})
-    $$
+$$
+FinalScore(\text{movie}) = \alpha \times KRS(\text{movie}) + \beta \times IMDB\_Score(\text{movie})
+$$
 
-    其中 $\alpha$ 和 $\beta$ 是权重参数，控制关键词匹配精确度与电影流行度的相对重要性。
+其中 $\alpha$ 和 $\beta$ 是权重参数，控制关键词匹配精确度与电影流行度的相对重要性。
 *   **生成推荐**: 电影根据最终分数降序排序，返回Top-N结果。
 此流程在 `recommend` 方法中实现。
 
