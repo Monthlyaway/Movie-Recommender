@@ -282,14 +282,14 @@ python .\src\main.py
 
 即可打开可交互界面（UI）
 
-![menu.png](..\images\ht_wang_menu.png)
+![menu.png](../images/ht_wang_menu.png)
 
 用户可以控制搜索结果中是否展示详细的电影情节（功能1）
 
 用户可以输入电影名来搜索情节推荐算法推荐的前10部电影（功能2）
 
-![plot1](..\images\ht_wang_plot_rec1.png)
-![plot1](..\images\ht_wang_plot_rec2.png)
+![plot1](../images/ht_wang_plot_rec1.png)
+![plot1](../images/ht_wang_plot_rec2.png)
 
 用户也可以浏览当前数据集的整体统计结果（功能3）
 
@@ -300,5 +300,5 @@ python .\src\main.py
 
 如果所搜索的电影名不在数据库中，系统会进行模糊搜索，识别其中的关键词，搜索相似电影名，然后重复功能2的过程。
 
-![plot1](..\images\ht_wang_plot_rec3.png)
-![plot1](..\images\ht_wang_plot_rec4.png)
+![plot1](../images/ht_wang_plot_rec3.png)
+![plot1](../images/ht_wang_plot_rec4.png)
