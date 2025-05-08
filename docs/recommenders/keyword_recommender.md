@@ -36,7 +36,7 @@
 1.  **用户关键词解析**: 将输入字符串解析为关键词集合。
 2.  **匹配与KRS计算**: 计算电影的关键词相关性评分 (KRS)：
 
-    $$KRS(\text{movie}) = \sum IDF(\text{matched\_keyword})$$
+    $$KRS(\text{movie}) = \sum IDF(\text{matched keyword})$$
 
     即电影所有匹配关键词的IDF值之和。
 3.  **KRS归一化**: 将KRS归一化到0-1范围。
