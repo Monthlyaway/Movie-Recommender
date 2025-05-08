@@ -13,7 +13,7 @@
 
 ## 数据集
 
-本项目使用了以下数据集：
+本项目使用了以下[数据集](https://www.kaggle.com/datasets/rounakbanik/the-movies-dataset?resource=download)：
 - MovieLens 数据集（包含电影元数据和用户评分）
 - IMDB 数据（用于补充电影信息）
 
@@ -75,7 +75,7 @@ python src/main.py association --help
 
 ## 团队成员
 
-- 成员1：负责加权评分推荐器(Simple Recommender)
-- 成员2：负责情节相似度推荐器(Plot Recommender)
-- 成员3：负责关键词推荐器(Keyword Recommender)
-- 成员4：负责关联规则推荐器(Association Recommender)
+- 陈可豪：负责加权评分推荐器(Simple Recommender)
+- 王海天：负责情节相似度推荐器(Plot Recommender)
+- 杨淳瑜：负责关键词推荐器(Keyword Recommender)
+- 王熙同：负责关联规则推荐器(Association Recommender)
