@@ -97,8 +97,8 @@ python src/main.py simple
 ```
 ### 3.2 输出结果示例
 
-![](..\images\chen_1.png)
-![](..\images\chen_2.png)
+![](../images/chen_1.png)
+![](../images/chen_2.png)
 
 
 ## 四、总结
