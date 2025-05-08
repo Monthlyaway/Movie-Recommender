@@ -21,7 +21,9 @@
 1.  **关键词提取**: 从关键词数据中解析出每部电影的关键词集合。此步骤由 `_parse_keyword_string` 方法完成。
 2.  **IDF值计算**: 计算每个独立关键词的逆文档频率 (IDF) 以评估其重要性。公式如下：
 
-    $$IDF(\text{keyword}) = \log\left(\frac{N + 1}{df_{\text{keyword}} + 1}\right) + 1$$
+    $$
+    IDF(\text{keyword}) = \log\left(\frac{N + 1}{df_{\text{keyword}} + 1}\right) + 1
+    $$
 
     其中：
     *   $N$ 是电影总数。
@@ -36,7 +38,9 @@
 1.  **用户关键词解析**: 将输入字符串解析为关键词集合。
 2.  **匹配与KRS计算**: 计算电影的关键词相关性评分 (KRS)：
 
-    $$KRS(\text{movie}) = \sum IDF(\text{matched keyword})$$
+    $$
+    KRS(\text{movie}) = \sum IDF(\text{matched keyword})
+    $$
 
     即电影所有匹配关键词的IDF值之和。
 3.  **KRS归一化**: 将KRS归一化到0-1范围。
@@ -45,7 +49,9 @@
 结合关键词相关性与电影质量计算最终分数：
 *   **最终分数 (Final Score)**:
 
-    $$FinalScore(\text{movie}) = \alpha \times KRS(\text{movie}) + \beta \times IMDB\_Score(\text{movie})$$
+    $$
+    FinalScore(\text{movie}) = \alpha \times KRS(\text{movie}) + \beta \times IMDB\_Score(\text{movie})
+    $$
 
     其中 $\alpha$ 和 $\beta$ 是权重参数，控制关键词匹配精确度与电影流行度的相对重要性。
 *   **生成推荐**: 电影根据最终分数降序排序，返回Top-N结果。
