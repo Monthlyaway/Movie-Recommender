@@ -278,3 +278,27 @@ python src/main.py plot
 
 ![plot1](../images/ht_wang_plot_rec3.png)
 ![plot1](../images/ht_wang_plot_rec4.png)
+
+## 6. 讨论
+
+### 6.1 人名对情节相似度推荐的影响及优化
+
+基于情节的推荐方式一个潜在问题是可能被文本中的人名主导。例如，如果用户希望通过电影《Wreck-It Ralph》来寻找相似的电影，系统在未去除人名时，可能会优先推荐《Giving It Up》。这是因为两部电影的情节描述中都频繁出现了 "Ralph" 这个名字，导致了较高的文本相似度，尽管它们的实际主题可能相去甚远。
+
+![Wreck-It Ralph recommendation before name removal](../images/chen_ralph1.png)
+
+这不是我们期望的结果。为了解决这个问题，我们可以在预处理阶段去除电影情节描述中的人名。这可以通过命名实体识别 (NER) 技术实现，具体代码参考 [`src/preprocess_metadata.py`](src/preprocess_metadata.py)。核心思路是使用NLP库spaCy识别人名实体 (PERSON) 并将其从文本中移除。
+
+以下代码片段展示了移除人名的核心逻辑：
+```python
+def remove_person_entities(text, nlp_model):
+    doc = nlp_model(text)
+    tokens_without_persons = [t.text_with_ws for t in doc if t.ent_type_ != "PERSON"]
+    return "".join(tokens_without_persons)
+```
+
+去除人名后，使用处理过的元数据再次为《Wreck-It Ralph》进行推荐，首位推荐变为《Jumanji》。《Jumanji》的剧情梗概为：“当两姐弟发现一个神奇的棋盘游戏，打开了通往魔法世界的大门时，他们无意中将一个被困在游戏中长达26年的成年人带入了他们的客厅。他获得自由的唯一希望就是完成游戏，但这充满了风险，因为他们三人发现自己正在躲避巨大的犀牛、邪恶的猴子和其他可怕的生物。” 这显然更符合《Wreck-It Ralph》的奇幻冒险主题。
+
+![Wreck-It Ralph recommendation after name removal](../images/chen_ralph2.png)
+
+通过这种方式，我们能够提高情节相似度推荐的准确性和相关性。

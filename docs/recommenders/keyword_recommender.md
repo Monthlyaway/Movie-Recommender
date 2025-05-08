@@ -53,42 +53,7 @@
 
 ## 核心代码解析 (Core Code Analysis)
 
-本章节将选取 [`../../src/recommenders/keyword_recommender.py`](../../src/recommenders/keyword_recommender.py) 文件中的关键 Python 代码片段进行展示和解析，以阐明关键词推荐器的内部实现细节。
-
-### 初始化
-
-推荐器的初始化方法负责设置关键参数和数据结构的初始状态。
-
-```python
-class KeywordRecommender:
-    def __init__(self, alpha: float = 0.7, beta: float = 0.3, vote_count_percentile: float = 0.85):
-        """
-        Initializes the KeywordRecommender.
-
-        Args:
-            alpha: Weight for the keyword relevance score (KRS).
-            beta: Weight for the normalized IMDB weighted score.
-            vote_count_percentile: Percentile for minimum votes in IMDB score calculation.
-        """
-        self.alpha = alpha
-        self.beta = beta
-        self.vote_count_percentile = vote_count_percentile
-
-        self.metadata_df = pd.DataFrame()
-        self.idf_scores = {}  # Stores IDF score for each keyword
-        self.movie_keyword_sets = pd.Series(dtype='object') # Movie ID to keyword set
-        self.normalized_imdb_scores = pd.Series(dtype='float64') # Movie ID to normalized IMDB score
-        self._fitted = False # Flag to check if fit has been called
-```
-**解析**:
-*   `alpha` 和 `beta`: 这两个浮点型参数分别定义了在计算最终推荐分数时，关键词相关性评分 (KRS) 和归一化IMDB加权评分的权重。它们的和通常建议为1。默认值分别为 `0.7` 和 `0.3`，表示在默认情况下，关键词匹配的相关性占比较大。
-*   `vote_count_percentile`: 此参数用于计算IMDB加权评分时，确定作为有效投票数基线的百分位数。例如，`0.85` 表示只考虑投票数超过数据集中85%电影的那些电影的评分，以增加评分的可靠性。
-*   `metadata_df`: 用于存储加载后的电影元数据。
-*   `idf_scores`: 一个字典，用于存储每个关键词计算得到的IDF值。
-*   `movie_keyword_sets`: 一个Pandas Series，其索引是电影ID，值是对应电影的关键词集合。
-*   `normalized_imdb_scores`: 一个Pandas Series，存储每部电影归一化后的IMDB加权评分。
-*   `_fitted`: 一个布尔标志，用于指示推荐器是否已经过 `fit` 方法的训练/数据准备。
-
+本章节将选取 [`src/recommenders/keyword_recommender.py`](../../src/recommenders/keyword_recommender.py) 文件中的关键 Python 代码片段进行展示和解析，以阐明关键词推荐器的内部实现细节。
 
 ### IDF计算 (`_calculate_idf`)
 该方法计算数据集中所有独立关键词的逆文档频率 (IDF)。
@@ -114,9 +79,7 @@ class KeywordRecommender:
         for keyword, doc_freq in keyword_doc_frequency.items():
             self.idf_scores[keyword] = math.log((total_movies + 1) / (doc_freq + 1)) + 1
 ```
-**解析**:
-*   `all_movie_keyword_sets`: 输入是一个Pandas Series，包含了数据集中每部电影的关键词集合。
-*   `total_movies`: 数据集中的电影总数。
+
 *   `keyword_doc_frequency`: 使用 `collections.Counter` 来统计每个关键词在多少部电影中出现过（即文档频率 `df`）。
 *   对于每个关键词，IDF值根据公式 `log((total_movies + 1) / (doc_freq + 1)) + 1` 计算。平滑处理（`+1`）用于避免当 `doc_freq` 为0或极大时可能出现的问题。
 *   计算得到的IDF值存储在 `self.idf_scores` 字典中。
@@ -168,14 +131,9 @@ class KeywordRecommender:
 ```
 **解析**:
 1.  **加载元数据**: 复制传入的 `metadata_df` 并以电影 `id` 设置索引。
-2.  **加载和解析关键词**:
-    *   从指定的 `keywords_data_path` (默认为 `dataset/keywords.csv`) 加载关键词数据。
-    *   将关键词数据中的 `id` 列设置为索引，并确保其类型与元数据索引一致。
-    *   对于元数据中的每一部电影，调用 `_parse_keyword_string` 方法来获取其关键词集合，并将结果存储在 `self.movie_keyword_sets` 和 `self.metadata_df['keyword_set']` 中。
+2.  **加载和解析关键词**
 3.  **计算IDF分数**: 调用 `_calculate_idf` 方法计算所有关键词的IDF值。
 4.  **计算归一化IMDB分数**:
-    *   调用 [`calculate_normalized_weighted_scores`](../../src/utils/weighted_score.py:1) 函数（来自 [`../../src/utils/weighted_score.py:1`](../../src/utils/weighted_score.py:1)）。此函数需要 `metadata_df` 中包含 `vote_average` 和 `vote_count` 列。
-    *   将返回的归一化IMDB分数存储在 `self.normalized_imdb_scores` 和 `self.metadata_df['normalized_imdb_score']` 中。
 5.  设置 `self._fitted = True` 标记表示数据准备完成。
 
 ### 生成推荐 (`recommend`)
@@ -226,21 +184,12 @@ class KeywordRecommender:
         # ... (Select and format output columns) ...
         return final_recs
 ```
-**解析**:
+
 1.  **检查拟合状态**: 确保 `fit` 方法已被调用。
 2.  **用户关键词处理**: 将用户输入的逗号分隔的关键词字符串（`user_keywords_str`）转换为小写的关键词集合 `user_keywords`。
 3.  **计算KRS**:
-    *   遍历 `self.metadata_df` 中的每一部电影。
-    *   获取该电影的关键词集合 (`movie_kws`)。
-    *   找出用户关键词与电影关键词的交集 (`matched_keywords`)。
-    *   如果存在匹配的关键词，则该电影的KRS计算为这些匹配关键词的IDF值之和（从 `self.idf_scores` 中获取IDF值，未知关键词的IDF视为0）。
-    *   将计算得到的KRS存储在 `self.metadata_df['krs']` 列中。
 4.  **归一化KRS**:
-    *   对 `self.metadata_df['krs']` 列中大于0的值进行最小-最大规范化 (Min-Max Normalization)，将其缩放到 `[0, 1]` 区间。结果存储在 `self.metadata_df['normalized_krs']`。
-    *   如果所有电影的KRS都为0（即没有匹配），则所有 `normalized_krs` 也为0。
 5.  **计算最终分数**:
-    *   根据公式 `final_score = alpha * normalized_krs + beta * normalized_imdb_score` 计算每部电影的最终推荐分数。
-    *   使用 `.fillna(0)` 处理可能因某些电影没有IMDB评分或KRS为0而产生的NaN值。
 6.  **排序与返回**:
     *   根据 `final_score` 对电影进行降序排序。
     *   选取指定的 `top_n` 部电影，并选择如标题、最终分数、各项原始分数、关键词集合等列作为最终推荐结果返回。
@@ -250,26 +199,15 @@ class KeywordRecommender:
 本章节将描述运行关键词推荐系统的实验环境、启动参数，并通过具体的命令行示例来展示其交互方式和预期的输出结果。
 
 ### 启动推荐系统与参数说明
-关键词推荐器通过项目根目录下的 [`../../src/main.py`](../../src/main.py) 脚本启动。运行该脚本时，需要指定 `keyword` 作为推荐器类型。
+关键词推荐器通过项目根目录下的 [`src/main.py`](../../src/main.py) 脚本启动。运行该脚本时，需要指定 `keyword` 作为推荐器类型。
 
 **基本启动命令**:
+
 ```bash
 python src/main.py keyword
 ```
 
 ### 测试用例与命令行示例
-由于无法在此报告中直接动态运行代码，以下将通过命令行交互的模拟形式，展示推荐系统的使用方法和计划测试的关键词类型。
-
-**启动与交互流程**:
-1.  打开终端或命令行界面。
-2.  导航到项目根目录 (`Movie-Recommender/`)。
-3.  执行如 `python src/main.py keyword [可选参数]` 命令。
-4.  系统会首先加载数据并初始化推荐器。
-5.  初始化完成后，系统会提示用户输入关键词，例如：
-    ```
-    Enter keywords (comma-separated), or type 'exit' to quit:
-    ```
-6.  用户输入关键词后按回车，系统将输出推荐结果。
 
 **计划测试的关键词场景与示例**:
 
@@ -280,8 +218,7 @@ python src/main.py keyword
     *   `comedy`
     *   `drama`
     *   `love`
-    然后当提示时，依次输入上述单个关键词。
-*   **结果**:
+
     ![Action](../images/yang_action.png)
     ![Action](../images/yang_action_2.png)
     ![Action](../images/yang_action_3.png)
@@ -293,12 +230,7 @@ python src/main.py keyword
     *   `action, comedy`
     *   `drama, romance`
     *   `sci-fi, adventure`
-*   **命令行示例 (使用默认参数)**:
-    ```bash
-    python src/main.py keyword
-    ```
-    然后当提示时，输入上述关键词组合。
-*   **预期结果位置**:
+
     ![drama, romance](../images/yang_comb_1.png)
     ![drama, romance](../images/yang_comb_2.png)
     ![drama, romance](../images/yang_comb_3.png)
@@ -308,11 +240,11 @@ python src/main.py keyword
 *   **目的**: 观察系统如何处理多个不常见关键词的组合，这可能导致非常小众或精确的推荐结果。
 *   **示例关键词输入**:
     *   `dystopia, mockumentary`
-*   **命令行示例 (可能调高 alpha 权重)**:
+*   **命令行示例**:
     ```bash
     python src/main.py keyword --alpha 0.8 --beta 0.2
     ```
-    然后当提示时，输入上述关键词组合。
+
 ![dystopia, mockumentary](../images/yang_rare_1.png)
 ![dystopia, mockumentary](../images/yang_rare_2.png)
 ![dystopia, mockumentary](../images/yang_rare_3.png)
@@ -324,20 +256,20 @@ python src/main.py keyword
 
 ### 参数影响分析
 
-关键词推荐器的核心行为受到几个关键参数的显著影响：
+关键词推荐器的核心行为受以下关键参数影响：
 
 *   **`alpha` 和 `beta` 权重**:
-    *   这两个参数共同决定了关键词相关性评分 (Normalized KRS) 和电影的IMDB加权评分 (Normalized IMDB Score) 在最终推荐分数中的相对重要性。
-    *   **高 `alpha` 值 (例如 `alpha=0.9, beta=0.1`)**: 会使推荐结果更侧重于与用户输入关键词高度匹配的电影。即使某些电影的IMDB评分不是顶级，但只要它们与查询关键词非常相关（拥有多个高IDF值的匹配关键词），它们就可能排名靠前。这种设置适合那些对自己想看的内容有明确关键词指向的用户。
-    *   **高 `beta` 值 (例如 `alpha=0.1, beta=0.9`)**: 会使推荐结果更偏向那些本身具有较高IMDB加权评分的电影，即那些被大众认为质量较高或非常受欢迎的影片。在这种设置下，关键词的匹配度虽然仍然是考虑因素，但其影响力会减弱。如果用户输入的关键词匹配到的电影普遍评分不高，那么最终推荐列表可能会被高分但关键词匹配度不高的电影占据。
-    *   **均衡的 `alpha` 和 `beta` (例如 `alpha=0.5, beta=0.5` 或默认的 `alpha=0.7, beta=0.3`)**: 试图在关键词的精确匹配和电影的普适流行度之间取得平衡。默认值略微偏向关键词匹配，这符合关键词推荐器的初衷。
-    *   在实验中，通过调整 `alpha` 和 `beta` 并观察同一组关键词查询下的推荐列表变化，可以清晰地看到这种权重调整的效果。
+    *   这两个参数用于平衡关键词相关性评分 (Normalized KRS) 和电影IMDB加权评分 (Normalized IMDB Score) 在最终推荐分数中的占比。
+    *   高 `alpha` 值侧重关键词匹配度，适合有明确关键词偏好的用户。
+    *   高 `beta` 值侧重电影的IMDB评分，倾向于推荐大众认可的高分或热门电影。
+    *   均衡的 `alpha` 和 `beta` (如默认 `alpha=0.7, beta=0.3`) 则在两者间寻求平衡，略偏向关键词匹配。
 
-*   **`kw-vote-percentile` (用于IMDB评分计算)**:
-    *   此参数定义了在计算IMDB加权评分时，用于筛选电影的最小投票数阈值所对应的百分位。例如，`0.85` 表示只考虑那些投票数超过数据集中85%的电影的评分。
-    *   **较高的 `kw-vote-percentile` (例如 `0.90` 或 `0.95`)**: 会使得IMDB加权评分的计算更为严格，只有那些拥有非常多投票数（通常意味着更广为人知和经过更多人评价）的电影才会被纳入考量。这可以提高IMDB评分的"可靠性"，但也可能排除掉一些小众但高质量的电影。
-    *   **较低的 `kw-vote-percentile` (例如 `0.70` 或 `0.50`)**: 会放宽对投票数的要求，使得更多电影（包括一些投票数较少的）能参与IMDB加权评分的计算。这可能引入一些评分人数较少带来的不确定性，但也可能让一些冷门佳片有机会进入推荐。
-    *   这个参数主要影响 `normalized_imdb_score` 的分布和值，间接影响最终的 `final_score`。
+*   **`vote_count_percentile` (用于IMDB评分计算)**:
+    *   此参数通过选取数据集中电影投票数的一个分位数，来确定IMDB加权评分公式中的最小投票数阈值 (`m`)。
+    *   `m` 值用于确保只有获得足够多投票数的电影才能在加权评分中占据显著权重，从而提升评分的可靠性。
+    *   较高的 `vote_count_percentile` (如 `0.90`, `0.95`) 会设定更严格的投票数门槛，侧重于经过广泛评价的电影，可能排除小众佳片。
+    *   较低的 `vote_count_percentile` (如 `0.70`, `0.50`) 则更具包容性，会纳入投票数较少的电影，但可能引入评分数据不够稳健的影片。
+    *   该参数主要影响 `normalized_imdb_score` 的计算，进而影响最终的 `final_score`。
 
 ### 推荐器优点
 
