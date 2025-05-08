@@ -13,27 +13,21 @@ TF-IDF (Term Frequency-Inverse Document Frequency) 是一种用于文本特征�
 #### 2.1.1 数学公式
 
 1. 词频(TF):
-$$
-TF(t,d) = \frac{f(t,d)}{\sum_k f(k,d)}
-$$
+$$TF(t,d) = \frac{f(t,d)}{\sum_k f(k,d)}$$
 
 其中:
 - `f(t,d)` 是词 t 在文档 d 中出现的次数
 - 分母是文档 d 中所有词的出现次数之和
 
 2. 逆文档频率(IDF):
-$$
-IDF(t) = \log\left(\frac{N}{DF(t)}\right)
-$$
+$$IDF(t) = \log\left(\frac{N}{DF(t)}\right)$$
 
 其中:
 - `N` 是文档总数
 - `DF(t)` 是包含词 t 的文档数量
 
 3. TF-IDF 得分:
-$$
-TF\text{-}IDF(t,d) = TF(t,d) \times IDF(t)
-$$
+$$TF\text{-}IDF(t,d) = TF(t,d) \times IDF(t)$$
 
 通过TF-IDF计算,我们可以量化每个词项在文档集合中的统计重要性。该指标不仅考虑了词项在单个文档中的出现频率,还通过IDF因子平衡了其在整个语料库中的普遍程度,从而有效识别对文档语义表达具有显著贡献的关键词。这种方法为后续的文本相似度计算提供了可靠的特征表示基础。
 
@@ -94,34 +88,7 @@ $$
 
 ### 2.3 加权评分公式
 
-为了平衡电影质量和相似度，系统使用了一个加权评分公式：
-
-#### 2.3.1 数学公式
-
-$$
-\text{weighted\_score} = \left( \frac{v}{v + m} \times R \right) + \left( \frac{m}{v + m} \times C \right)
-$$
-
-
-其中:
-- `v` 是电影的投票数
-- `m` 是最小投票数要求(通过百分位数确定)
-- `R` 是电影的平均评分
-- `C` 是所有电影的平均评分
-
-#### 2.3.2 最终推荐分数
-
-最终推荐分数是相似度和加权评分的加权组合:
-
-$$
-\text{final\_score} = \alpha \times \text{similarity} + (1 - \alpha) \times \text{normalized\_weighted\_score}
-$$
-
-
-其中:
-- `α` 是相似度权重(默认0.7)
-- `similarity` 是余弦相似度
-- `normalized_weighted_score` 是归一化后的加权评分
+为了平衡电影质量和相似度，系统使用了一个加权评分公式，见 [Simple Recommender](../recommenders/simple_recommender.md)
 
 ## 3. 核心代码实现
 
@@ -274,10 +241,10 @@ def recommend(self, movie_title: str, top_n: int = 10):
 
 ## 5. 功能展示
 
-在main函数中，我们可以对plot_recommender进行调用。在终端中输入指令(需要在根目录下进行操作，同时main函数默认推荐算法选项即为plot，无需额外参数，如需显式指定，也可以输入参数`plot`)：
+在main函数中，我们可以对`plot_recommender`进行调用。在终端中输入指令(需要在根目录下进行操作，同时main函数默认推荐算法选项即为plot，无需额外参数，如需显式指定，也可以输入参数`plot`)：
 
 ```bash
-python .\src\main.py
+python src/main.py plot
 ```
 
 即可打开可交互界面（UI）

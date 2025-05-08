@@ -29,6 +29,8 @@ $$
 
 这样做能有效防止只有几个评分的电影“冲榜”。
 
+![加权公式分析](../images/weighted_rating.png)
+
 ---
 
 ## 二、核心代码及解释
@@ -48,9 +50,9 @@ qualified = metadata_df.copy().loc[metadata_df['vote_count'] >= self.m]
 qualified['score'] = weighted_scores_result['scores'].loc[qualified.index]
 ```
 
-首先使用calculate_all_weighted_scores调用工具函数，计算整体平均分'c'、最小票数阈值'm'，以及每部电影的加权分数。
+首先使用`calculate_all_weighted_scores`调用工具函数，计算整体平均分`c`、最小票数阈值`m`，以及每部电影的加权分数。
 
-后续的qualified是筛选出的满足最低票数要求的电影，作为“候选电影”。
+后续的`qualified`是筛选出的满足最低票数要求的电影，作为“候选电影”。
 
 最后，对这些候选电影，使用加权评分score作为排序依据。 
 
@@ -99,6 +101,8 @@ python src/main.py simple
 
 ![](../images/chen_1.png)
 ![](../images/chen_2.png)
+![](../images/chen_3.png)
+
 
 
 ## 四、总结
